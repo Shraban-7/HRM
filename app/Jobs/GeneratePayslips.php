@@ -11,6 +11,10 @@ class GeneratePayslips implements ShouldQueue
 {
     use Queueable;
 
+    public int $tries = 3;
+
+    public array $backoff = [60, 300];
+
     protected int $payrollId;
 
     public function __construct(int $payrollId)

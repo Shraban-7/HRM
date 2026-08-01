@@ -11,9 +11,16 @@ class SendNotificationEmails implements ShouldQueue
 {
     use Queueable;
 
+    public int $tries = 3;
+
+    public array $backoff = [30, 120];
+
     protected array $recipients;
+
     protected string $subject;
+
     protected string $view;
+
     protected array $data;
 
     public function __construct(array $recipients, string $subject, string $view, array $data = [])

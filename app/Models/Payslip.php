@@ -14,6 +14,10 @@ class Payslip extends Model
         'employee_id', 'payroll_id', 'gross', 'deductions', 'net', 'issued_at', 'pdf_path',
     ];
 
+    protected $casts = [
+        'issued_at' => 'datetime',
+    ];
+
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);

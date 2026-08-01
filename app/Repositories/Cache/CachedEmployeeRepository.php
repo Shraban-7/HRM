@@ -22,7 +22,7 @@ class CachedEmployeeRepository implements EmployeeRepositoryInterface
 
     public function findAll(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
-        $cacheKey = 'employees:all:' . md5(serialize($filters) . '|' . $perPage);
+        $cacheKey = $this->cacheKey('all:'.md5(serialize($filters).'|'.$perPage));
 
         return Cache::remember($cacheKey, $this->ttl, function () use ($filters, $perPage) {
             return $this->repository->findAll($filters, $perPage);
@@ -31,28 +31,28 @@ class CachedEmployeeRepository implements EmployeeRepositoryInterface
 
     public function findById(int $id): ?Employee
     {
-        return Cache::remember("employees:{$id}", $this->ttl, function () use ($id) {
+        return Cache::remember($this->cacheKey("id:{$id}"), $this->ttl, function () use ($id) {
             return $this->repository->findById($id);
         });
     }
 
     public function findByUserId(int $userId): ?Employee
     {
-        return Cache::remember("employees:user:{$userId}", $this->ttl, function () use ($userId) {
+        return Cache::remember($this->cacheKey("user:{$userId}"), $this->ttl, function () use ($userId) {
             return $this->repository->findByUserId($userId);
         });
     }
 
     public function findByDepartment(int $departmentId): Collection
     {
-        return Cache::remember("employees:department:{$departmentId}", $this->ttl, function () use ($departmentId) {
+        return Cache::remember($this->cacheKey("department:{$departmentId}"), $this->ttl, function () use ($departmentId) {
             return $this->repository->findByDepartment($departmentId);
         });
     }
 
     public function search(string $query): Collection
     {
-        $cacheKey = 'employees:search:' . md5($query);
+        $cacheKey = $this->cacheKey('search:'.md5($query));
 
         return Cache::remember($cacheKey, $this->ttl / 2, function () use ($query) {
             return $this->repository->search($query);
@@ -70,7 +70,7 @@ class CachedEmployeeRepository implements EmployeeRepositoryInterface
     public function update(Employee $employee, array $data): Employee
     {
         $result = $this->repository->update($employee, $data);
-        $this->clearCache($employee->id);
+        $this->clearCache();
 
         return $result;
     }
@@ -78,18 +78,25 @@ class CachedEmployeeRepository implements EmployeeRepositoryInterface
     public function delete(Employee $employee): void
     {
         $this->repository->delete($employee);
-        $this->clearCache($employee->id);
+        $this->clearCache();
     }
 
     /**
-     * Clear cache for employee-related keys.
+     * Build a version-prefixed cache key so invalidation can be performed
+     * by bumping the namespace version rather than enumerating keys.
      */
-    protected function clearCache(?int $employeeId = null): void
+    protected function cacheKey(string $suffix): string
     {
-        Cache::forget('employees:all:*');
+        $version = (int) Cache::get('employees:version', 1);
 
-        if ($employeeId) {
-            Cache::forget("employees:{$employeeId}");
-        }
+        return "employees:v{$version}:{$suffix}";
+    }
+
+    /**
+     * Clear all employee cache entries by bumping the namespace version.
+     */
+    protected function clearCache(): void
+    {
+        Cache::increment('employees:version');
     }
 }

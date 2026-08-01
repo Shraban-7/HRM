@@ -11,7 +11,9 @@ class DepartmentController extends Controller
 {
     public function index()
     {
-        $departments = Department::with(['parent', 'manager', 'children', 'employees'])->paginate(15);
+        $departments = Department::with(['parent', 'manager'])
+            ->withCount(['children', 'employees'])
+            ->paginate(15);
         $managers = Employee::with('user')->where('status', 'active')->get();
 
         return view('employee.departments', compact('departments', 'managers'));

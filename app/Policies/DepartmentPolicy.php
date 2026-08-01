@@ -22,16 +22,16 @@ class DepartmentPolicy
 
     public function create(?User $user): bool
     {
-        return auth_has_permission('departments.manage');
+        return auth_has_permission('departments.create');
     }
 
     public function update(?User $user, Department $department): bool
     {
-        return auth_has_permission('departments.manage');
+        return auth_has_permission('departments.edit');
     }
 
     public function delete(?User $user, Department $department): bool
     {
-        return auth_has_permission('departments.manage');
+        return auth_has_permission('departments.delete');
     }
 }

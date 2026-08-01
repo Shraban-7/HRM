@@ -8,9 +8,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class AuditLog extends Model
 {
     public $timestamps = false;
+
     protected $fillable = [
         'user_id', 'action', 'resource', 'resource_id',
-        'before_data', 'after_data', 'ip_address', 'created_at'
+        'before_data', 'after_data', 'ip_address', 'created_at',
+    ];
+
+    protected $casts = [
+        'created_at' => 'datetime',
     ];
 
     public function user(): BelongsTo

@@ -22,7 +22,7 @@ class CachedPayrollRepository implements PayrollRepositoryInterface
 
     public function findAll(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
-        $cacheKey = 'payrolls:all:' . md5(serialize($filters) . '|' . $perPage);
+        $cacheKey = $this->cacheKey('all:'.md5(serialize($filters).'|'.$perPage));
 
         return Cache::remember($cacheKey, $this->ttl, function () use ($filters, $perPage) {
             return $this->repository->findAll($filters, $perPage);
@@ -31,7 +31,7 @@ class CachedPayrollRepository implements PayrollRepositoryInterface
 
     public function findById(int $id): ?Payroll
     {
-        return Cache::remember("payrolls:{$id}", $this->ttl, function () use ($id) {
+        return Cache::remember($this->cacheKey("id:{$id}"), $this->ttl, function () use ($id) {
             return $this->repository->findById($id);
         });
     }
@@ -47,28 +47,34 @@ class CachedPayrollRepository implements PayrollRepositoryInterface
     public function update(Payroll $payroll, array $data): Payroll
     {
         $result = $this->repository->update($payroll, $data);
-        $this->clearCache($payroll->id);
+        $this->clearCache();
 
         return $result;
     }
 
     public function getPayslipsForPayroll(int $payrollId): Collection
     {
-        return Cache::remember("payrolls:{$payrollId}:payslips", $this->ttl, function () use ($payrollId) {
+        return Cache::remember($this->cacheKey("id:{$payrollId}:payslips"), $this->ttl, function () use ($payrollId) {
             return $this->repository->getPayslipsForPayroll($payrollId);
         });
     }
 
     /**
-     * Clear cache for payroll-related keys.
+     * Build a version-prefixed cache key so invalidation can be performed
+     * by bumping the namespace version rather than enumerating keys.
      */
-    protected function clearCache(?int $payrollId = null): void
+    protected function cacheKey(string $suffix): string
     {
-        Cache::forget('payrolls:all:*');
+        $version = (int) Cache::get('payrolls:version', 1);
 
-        if ($payrollId) {
-            Cache::forget("payrolls:{$payrollId}");
-            Cache::forget("payrolls:{$payrollId}:payslips");
-        }
+        return "payrolls:v{$version}:{$suffix}";
+    }
+
+    /**
+     * Clear all payroll cache entries by bumping the namespace version.
+     */
+    protected function clearCache(): void
+    {
+        Cache::increment('payrolls:version');
     }
 }

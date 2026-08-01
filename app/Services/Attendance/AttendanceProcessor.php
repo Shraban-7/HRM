@@ -4,6 +4,7 @@ namespace App\Services\Attendance;
 
 use App\Models\Attendance;
 use App\Models\Employee;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 
 class AttendanceProcessor
@@ -26,7 +27,7 @@ class AttendanceProcessor
 
         return Attendance::create([
             'employee_id' => $employee->id,
-            'date' => $today,
+            'date' => $today->toDateString(),
             'clock_in' => now(),
             'status' => 'present',
         ]);
@@ -43,7 +44,7 @@ class AttendanceProcessor
             ->whereDate('date', $today)
             ->first();
 
-        if (!$attendance) {
+        if (! $attendance) {
             throw new \RuntimeException('No clock-in record found for today.');
         }
 
@@ -62,7 +63,7 @@ class AttendanceProcessor
     /**
      * Get attendance records for an employee for a given period.
      */
-    public function getAttendanceForPeriod(Employee $employee, $start, $end): \Illuminate\Database\Eloquent\Collection
+    public function getAttendanceForPeriod(Employee $employee, $start, $end): Collection
     {
         $start = $start instanceof Carbon ? $start : Carbon::parse($start);
         $end = $end instanceof Carbon ? $end : Carbon::parse($end);
@@ -82,7 +83,7 @@ class AttendanceProcessor
             ->whereDate('date', $date)
             ->first();
 
-        if (!$attendance || !$attendance->clock_in || !$attendance->clock_out) {
+        if (! $attendance || ! $attendance->clock_in || ! $attendance->clock_out) {
             return 0.0;
         }
 
@@ -99,7 +100,7 @@ class AttendanceProcessor
     /**
      * Get monthly attendance summary for an employee.
      */
-    public function getMonthlyAttendance(int $employeeId, int $year, int $month): \Illuminate\Database\Eloquent\Collection
+    public function getMonthlyAttendance(int $employeeId, int $year, int $month): Collection
     {
         return Attendance::where('employee_id', $employeeId)
             ->whereYear('date', $year)

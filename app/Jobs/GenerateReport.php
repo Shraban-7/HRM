@@ -18,6 +18,10 @@ class GenerateReport implements ShouldQueue
 {
     use Queueable;
 
+    public int $tries = 2;
+
+    public array $backoff = [120];
+
     protected string $type;
 
     protected array $parameters;
