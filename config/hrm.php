@@ -11,4 +11,11 @@ return [
     ],
     'leave_types' => ['annual' => 20, 'sick' => 14, 'other' => 5],
     'default_deduction_rate' => 0.10,
+    'performance_bonus_rates' => [
+        5 => 0.10,
+        4 => 0.05,
+        3 => 0.02,
+        2 => 0.0,
+        1 => 0.0,
+    ],
 ];

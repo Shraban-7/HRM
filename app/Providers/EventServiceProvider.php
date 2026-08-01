@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Events\BenefitEnrollmentChanged;
 use App\Events\EmployeeHired;
 use App\Events\EmployeeTerminated;
 use App\Events\LeaveApproved;
@@ -10,6 +11,7 @@ use App\Events\PerformanceReviewSubmitted;
 use App\Events\SalaryChanged;
 use App\Listeners\LogAuditEvent;
 use App\Listeners\NotifyPayrollTeam;
+use App\Listeners\OfferCobraCoverage;
 use App\Listeners\SendWelcomeEmail;
 use App\Listeners\UpdateOrgChart;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
@@ -38,6 +40,10 @@ class EventServiceProvider extends ServiceProvider
         ],
         PerformanceReviewSubmitted::class => [
             LogAuditEvent::class,
+        ],
+        BenefitEnrollmentChanged::class => [
+            LogAuditEvent::class,
+            OfferCobraCoverage::class,
         ],
     ];
 

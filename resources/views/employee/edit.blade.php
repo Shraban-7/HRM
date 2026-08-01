@@ -7,7 +7,7 @@
         <a href="{{ route('employees.index') }}" class="text-gray-600 hover:text-gray-800"><i class="fas fa-arrow-left mr-1"></i>Back to List</a>
     </div>
 
-    <form id="employee-form" action="{{ route('employees.update', $employee) }}" method="POST" class="space-y-6">
+    <form id="employee-form" action="{{ route('employees.update', $employee) }}" method="POST" enctype="multipart/form-data" class="space-y-6">
         @csrf
         @method('PUT')
 
@@ -49,6 +49,16 @@
                     <option value="terminated" {{ old('status', $employee->status) === 'terminated' ? 'selected' : '' }}>Terminated</option>
                 </select>
                 @error('status')
+                    <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
+                @enderror
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Profile Photo</label>
+                @if($employee->profile_photo_path)
+                    <img src="{{ asset('storage/' . $employee->profile_photo_path) }}" alt="Profile" class="h-16 w-16 rounded-full object-cover mb-2">
+                @endif
+                <input type="file" name="profile_photo" accept="image/jpeg,image/png" class="w-full border border-gray-300 rounded px-3 py-2">
+                @error('profile_photo')
                     <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
                 @enderror
             </div>

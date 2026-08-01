@@ -88,4 +88,26 @@ class EmployeeTest extends TestCase
         $response->assertRedirect();
         $this->assertDatabaseHas('employees', ['id' => $employee->id, 'status' => 'terminated']);
     }
+
+    public function test_can_search_employees(): void
+    {
+        $this->loginAsAdmin();
+        Employee::factory()->count(2)->create();
+        $user = User::create([
+            'email' => 'srch@test.com',
+            'username' => 'sherlock_hr',
+            'password' => Hash::make('password'),
+            'status' => 'active',
+        ]);
+        Employee::factory()->create([
+            'user_id' => $user->id,
+            'employee_id' => 'EMP-SRCH-001',
+            'designation' => 'Analyst',
+        ]);
+
+        $response = $this->getJson(route('employees.search', ['q' => 'sherlock_hr']));
+        $response->assertOk();
+        $response->assertJsonCount(1);
+        $response->assertJsonFragment(['employee_id' => 'EMP-SRCH-001']);
+    }
 }

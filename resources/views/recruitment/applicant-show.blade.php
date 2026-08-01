@@ -43,5 +43,44 @@
             <p class="text-gray-500">No interview scheduled yet.</p>
         @endif
     </div>
+
+    @if($applicant->status !== 'hired')
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h4 class="font-semibold mb-4">Hire Applicant</h4>
+            <form method="POST" action="{{ route('applicants.hire', $applicant) }}">
+                @csrf
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                        <select name="department_id" class="w-full border border-gray-300 rounded px-3 py-2" required>
+                            <option value="">Select</option>
+                            @foreach(\App\Models\Department::all() as $dept)
+                                <option value="{{ $dept->id }}">{{ $dept->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Employee ID</label>
+                        <input type="text" name="employee_id" class="w-full border border-gray-300 rounded px-3 py-2" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Hire Date</label>
+                        <input type="date" name="hire_date" class="w-full border border-gray-300 rounded px-3 py-2" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Designation</label>
+                        <input type="text" name="designation" class="w-full border border-gray-300 rounded px-3 py-2" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Salary</label>
+                        <input type="number" step="0.01" min="0" name="salary" class="w-full border border-gray-300 rounded px-3 py-2" required>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Hire & Create Employee</button>
+                </div>
+            </form>
+        </div>
+    @endif
 </div>
 @endsection

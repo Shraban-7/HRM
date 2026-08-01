@@ -2,12 +2,13 @@
 
 namespace App\Listeners;
 
+use App\Events\BenefitEnrollmentChanged;
 use App\Events\EmployeeHired;
 use App\Events\EmployeeTerminated;
-use App\Events\SalaryChanged;
-use App\Events\PayrollProcessed;
 use App\Events\LeaveApproved;
+use App\Events\PayrollProcessed;
 use App\Events\PerformanceReviewSubmitted;
+use App\Events\SalaryChanged;
 use App\Models\AuditLog;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
@@ -18,7 +19,7 @@ class LogAuditEvent implements ShouldQueue
     use InteractsWithQueue;
 
     public function handle(
-        EmployeeHired|EmployeeTerminated|SalaryChanged|PayrollProcessed|LeaveApproved|PerformanceReviewSubmitted $event
+        EmployeeHired|EmployeeTerminated|SalaryChanged|PayrollProcessed|LeaveApproved|PerformanceReviewSubmitted|BenefitEnrollmentChanged $event
     ): void {
         $log = $this->buildAuditLog($event);
 
@@ -39,21 +40,21 @@ class LogAuditEvent implements ShouldQueue
             case $event instanceof EmployeeHired:
                 $log['action'] = 'employee.hired';
                 $log['resource'] = 'employee';
-                $log['resource_id'] = (string)$event->employee->id;
+                $log['resource_id'] = (string) $event->employee->id;
                 $log['after_data'] = json_encode($event->employee->toArray());
                 break;
 
             case $event instanceof EmployeeTerminated:
                 $log['action'] = 'employee.terminated';
                 $log['resource'] = 'employee';
-                $log['resource_id'] = (string)$event->employee->id;
+                $log['resource_id'] = (string) $event->employee->id;
                 $log['before_data'] = json_encode($event->employee->toArray());
                 break;
 
             case $event instanceof SalaryChanged:
                 $log['action'] = 'employee.salary_changed';
                 $log['resource'] = 'employee';
-                $log['resource_id'] = (string)$event->employee->id;
+                $log['resource_id'] = (string) $event->employee->id;
                 $log['before_data'] = json_encode(['salary' => $event->oldSalary]);
                 $log['after_data'] = json_encode(['salary' => $event->newSalary]);
                 break;
@@ -61,7 +62,7 @@ class LogAuditEvent implements ShouldQueue
             case $event instanceof PayrollProcessed:
                 $log['action'] = 'payroll.processed';
                 $log['resource'] = 'payroll';
-                $log['resource_id'] = (string)$event->payroll->id;
+                $log['resource_id'] = (string) $event->payroll->id;
                 $log['after_data'] = json_encode([
                     'total_amount' => $event->payroll->total_amount,
                     'status' => $event->payroll->status,
@@ -71,7 +72,7 @@ class LogAuditEvent implements ShouldQueue
             case $event instanceof LeaveApproved:
                 $log['action'] = 'leave.approved';
                 $log['resource'] = 'leave_request';
-                $log['resource_id'] = (string)$event->leaveRequest->id;
+                $log['resource_id'] = (string) $event->leaveRequest->id;
                 $log['after_data'] = json_encode([
                     'employee_id' => $event->leaveRequest->employee_id,
                     'status' => $event->leaveRequest->status,
@@ -81,10 +82,21 @@ class LogAuditEvent implements ShouldQueue
             case $event instanceof PerformanceReviewSubmitted:
                 $log['action'] = 'performance.review_submitted';
                 $log['resource'] = 'performance_review';
-                $log['resource_id'] = (string)$event->review->id;
+                $log['resource_id'] = (string) $event->review->id;
                 $log['after_data'] = json_encode([
                     'employee_id' => $event->review->employee_id,
                     'rating' => $event->review->rating,
+                ]);
+                break;
+
+            case $event instanceof BenefitEnrollmentChanged:
+                $log['action'] = 'benefit.enrollment_'.$event->action;
+                $log['resource'] = 'benefit_enrollment';
+                $log['resource_id'] = (string) $event->enrollment->id;
+                $log['after_data'] = json_encode([
+                    'employee_id' => $event->enrollment->employee_id,
+                    'benefit_id' => $event->enrollment->benefit_id,
+                    'status' => $event->enrollment->status,
                 ]);
                 break;
 
@@ -99,7 +111,7 @@ class LogAuditEvent implements ShouldQueue
     {
         // Try to get user from session
         if (session()->has('user_id')) {
-            return (int)session('user_id');
+            return (int) session('user_id');
         }
 
         // Try from event relationships

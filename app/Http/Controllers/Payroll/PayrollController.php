@@ -3,12 +3,19 @@
 namespace App\Http\Controllers\Payroll;
 
 use App\Http\Controllers\Controller;
-use App\Models\Employee;
 use App\Models\Payroll;
+use App\Services\Payroll\PayrollCalculator;
 use Illuminate\Http\Request;
 
 class PayrollController extends Controller
 {
+    protected PayrollCalculator $payrollCalculator;
+
+    public function __construct(PayrollCalculator $payrollCalculator)
+    {
+        $this->payrollCalculator = $payrollCalculator;
+    }
+
     public function index()
     {
         $payrolls = Payroll::with('payslips.employee.user')->orderBy('id', 'desc')->paginate(15);
@@ -50,25 +57,8 @@ class PayrollController extends Controller
     public function calculate(Payroll $payroll)
     {
         $this->authorize('run', $payroll);
-        $employees = Employee::where('status', 'active')->get();
-        $totalAmount = 0;
 
-        foreach ($employees as $employee) {
-            $gross = $employee->salary;
-            $deductions = $gross * 0.1; // 10% default deduction
-            $net = $gross - $deductions;
-            $totalAmount += $net;
-
-            $payroll->payslips()->create([
-                'employee_id' => $employee->id,
-                'gross' => $gross,
-                'deductions' => $deductions,
-                'net' => $net,
-                'issued_at' => now(),
-            ]);
-        }
-
-        $payroll->update(['total_amount' => $totalAmount, 'status' => 'completed']);
+        $this->payrollCalculator->processPayroll($payroll->id);
 
         return redirect()->route('payrolls.show', $payroll)
             ->with('success', 'Payroll calculated successfully.');

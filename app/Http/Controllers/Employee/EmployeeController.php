@@ -9,6 +9,7 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeBankDetail;
 use App\Services\Employee\EmployeeService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class EmployeeController extends Controller
@@ -53,6 +54,10 @@ class EmployeeController extends Controller
             'manager_id',
         ]);
 
+        if ($request->hasFile('profile_photo')) {
+            $employeeData['profile_photo_path'] = $request->file('profile_photo')->store('profile_photos', 'public');
+        }
+
         DB::transaction(function () use ($userData, $employeeData, $validated) {
             $employee = $this->employeeService->createEmployee($userData, $employeeData);
 
@@ -93,6 +98,10 @@ class EmployeeController extends Controller
     {
         $validated = $request->validated();
 
+        if ($request->hasFile('profile_photo')) {
+            $validated['profile_photo_path'] = $request->file('profile_photo')->store('profile_photos', 'public');
+        }
+
         $this->employeeService->updateEmployee($employee, $validated);
 
         $bankData = $request->only(['bank_name', 'account_name', 'account_number', 'routing_number', 'swift_code', 'tax_id']);
@@ -115,5 +124,26 @@ class EmployeeController extends Controller
 
         return redirect()->route('employees.index')
             ->with('success', 'Employee terminated successfully.');
+    }
+
+    public function search(Request $request)
+    {
+        $query = trim((string) $request->query('q', ''));
+
+        if ($query === '') {
+            return response()->json([]);
+        }
+
+        $employees = $this->employeeService->searchEmployees($query);
+
+        return response()->json($employees->map(fn ($employee) => [
+            'id' => $employee->id,
+            'name' => trim(($employee->first_name ?? '').' '.($employee->last_name ?? '')),
+            'username' => $employee->user?->username,
+            'email' => $employee->user?->email,
+            'employee_id' => $employee->employee_id,
+            'designation' => $employee->designation,
+            'department' => $employee->department?->name,
+        ]));
     }
 }

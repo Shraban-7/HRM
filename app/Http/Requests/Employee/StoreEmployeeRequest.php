@@ -31,6 +31,7 @@ class StoreEmployeeRequest extends FormRequest
             'designation' => 'required|string|max:255',
             'salary' => 'required|numeric|min:0|max:99999999.99',
             'manager_id' => 'nullable|exists:employees,id',
+            'profile_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'bank_name' => 'nullable|string|max:100',
             'account_name' => 'nullable|string|max:100',
             'account_number' => 'nullable|string|max:50',

@@ -29,6 +29,7 @@ class UpdateEmployeeRequest extends FormRequest
             'address' => 'nullable|string|max:500',
             'employment_type' => 'nullable|in:full_time,part_time,contract,intern',
             'manager_id' => ['nullable', Rule::exists('employees', 'id')],
+            'profile_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'bank_name' => 'nullable|string|max:100',
             'account_name' => 'nullable|string|max:100',
             'account_number' => 'nullable|string|max:50',

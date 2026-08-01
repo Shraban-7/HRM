@@ -4,9 +4,17 @@ namespace App\Http\Controllers\Payroll;
 
 use App\Http\Controllers\Controller;
 use App\Models\Payslip;
+use App\Services\Payroll\PayslipGenerator;
 
 class PayslipController extends Controller
 {
+    protected PayslipGenerator $payslipGenerator;
+
+    public function __construct(PayslipGenerator $payslipGenerator)
+    {
+        $this->payslipGenerator = $payslipGenerator;
+    }
+
     public function index()
     {
         $payslips = Payslip::with(['employee.user', 'payroll'])->paginate(15);
@@ -25,9 +33,7 @@ class PayslipController extends Controller
     public function download(Payslip $payslip)
     {
         $this->authorize('downloadPayslip', $payslip);
-        // PDF generation placeholder
-        $payslip->load(['employee.user', 'payroll']);
 
-        return view('payroll.payslip-pdf', compact('payslip'));
+        return $this->payslipGenerator->downloadPayslip($payslip);
     }
 }

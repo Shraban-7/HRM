@@ -5,6 +5,7 @@ namespace Tests\Unit\Services;
 use App\Models\Employee;
 use App\Models\Payroll;
 use App\Models\User;
+use App\Services\Benefits\BenefitDeductionService;
 use App\Services\Payroll\PayrollCalculator;
 use App\Services\Payroll\TaxEngine;
 use Tests\TestCase;
@@ -16,7 +17,7 @@ class PayrollCalculatorTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->calculator = new PayrollCalculator(new TaxEngine());
+        $this->calculator = new PayrollCalculator(new TaxEngine, new BenefitDeductionService);
     }
 
     public function test_calculate_employee_pay_returns_correct_gross(): void

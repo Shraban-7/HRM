@@ -11,7 +11,7 @@ class PerformanceReview extends Model
     use HasFactory;
 
     protected $fillable = [
-        'employee_id', 'reviewer_id', 'review_date', 'rating', 'notes', 'status',
+        'employee_id', 'reviewer_id', 'form_template_id', 'review_date', 'rating', 'notes', 'status',
     ];
 
     public function employee(): BelongsTo

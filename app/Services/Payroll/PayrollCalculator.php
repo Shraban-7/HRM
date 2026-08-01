@@ -5,6 +5,7 @@ namespace App\Services\Payroll;
 use App\Events\PayrollProcessed;
 use App\Models\Employee;
 use App\Models\Payroll;
+use App\Services\Benefits\BenefitDeductionService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -12,9 +13,12 @@ class PayrollCalculator
 {
     protected TaxEngine $taxEngine;
 
-    public function __construct(TaxEngine $taxEngine)
+    protected BenefitDeductionService $benefitDeductions;
+
+    public function __construct(TaxEngine $taxEngine, BenefitDeductionService $benefitDeductions)
     {
         $this->taxEngine = $taxEngine;
+        $this->benefitDeductions = $benefitDeductions;
     }
 
     /**
@@ -67,10 +71,12 @@ class PayrollCalculator
         $deductionRate = config('hrm.default_deduction_rate', 0.10);
         $baseDeduction = round($gross * $deductionRate, 2);
 
-        // Additional deductions can be added here based on employee benefits, etc.
-        $additionalDeductions = 0.0;
+        // Benefit-based deductions for the employee's active enrollments.
+        $additionalDeductions = $employee
+            ? $this->benefitDeductions->deductionsForEmployee($employee)
+            : 0.0;
 
-        return $baseDeduction + $additionalDeductions;
+        return round($baseDeduction + $additionalDeductions, 2);
     }
 
     /**

@@ -13,12 +13,19 @@ use App\Policies\LeavePolicy;
 use App\Policies\PayrollPolicy;
 use App\Services\Attendance\AttendanceProcessor;
 use App\Services\Attendance\LeaveCalculator;
+use App\Services\Benefits\BenefitCostCalculator;
+use App\Services\Benefits\BenefitDeductionService;
+use App\Services\Benefits\CobraService;
+use App\Services\Benefits\Providers\BenefitProviderRegistry;
+use App\Services\Benefits\Providers\DentalProvider;
+use App\Services\Benefits\Providers\HealthProvider;
 use App\Services\Employee\EmployeeService;
 use App\Services\Notification\EmailNotificationService;
 use App\Services\Notification\InAppNotificationService;
 use App\Services\Payroll\PayrollCalculator;
 use App\Services\Payroll\PayslipGenerator;
 use App\Services\Payroll\TaxEngine;
+use App\Services\Performance\PerformanceBonusCalculator;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -39,6 +46,17 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(LeaveCalculator::class);
         $this->app->singleton(EmailNotificationService::class);
         $this->app->singleton(InAppNotificationService::class);
+        $this->app->singleton(BenefitCostCalculator::class);
+        $this->app->singleton(BenefitDeductionService::class);
+        $this->app->singleton(CobraService::class);
+        $this->app->singleton(PerformanceBonusCalculator::class);
+        $this->app->singleton(BenefitProviderRegistry::class, function (Application $app) {
+            $registry = new BenefitProviderRegistry;
+            $registry->register($app->make(HealthProvider::class));
+            $registry->register($app->make(DentalProvider::class));
+
+            return $registry;
+        });
     }
 
     /**

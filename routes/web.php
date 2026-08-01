@@ -2,12 +2,14 @@
 
 use App\Http\Controllers\Attendance\AttendanceController;
 use App\Http\Controllers\Attendance\LeaveController;
+use App\Http\Controllers\Attendance\ShiftController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\Benefits\BenefitController;
+use App\Http\Controllers\Benefits\CobraController;
 use App\Http\Controllers\Benefits\EnrollmentController;
 use App\Http\Controllers\Dashboard\EmployeeDashboardController;
 use App\Http\Controllers\Dashboard\HRDashboardController;
@@ -19,12 +21,17 @@ use App\Http\Controllers\Notification\NotificationController;
 use App\Http\Controllers\Payroll\PayrollController;
 use App\Http\Controllers\Payroll\PayslipController;
 use App\Http\Controllers\Payroll\TaxController;
+use App\Http\Controllers\Performance\BonusController;
+use App\Http\Controllers\Performance\CalibrationController;
 use App\Http\Controllers\Performance\FeedbackController;
+use App\Http\Controllers\Performance\FormTemplateController;
 use App\Http\Controllers\Performance\GoalController;
 use App\Http\Controllers\Performance\ReviewController;
 use App\Http\Controllers\Recruitment\ApplicantController;
+use App\Http\Controllers\Recruitment\CareerController;
 use App\Http\Controllers\Recruitment\InterviewController;
 use App\Http\Controllers\Recruitment\JobPostController;
+use App\Http\Controllers\Reports\ReportController;
 use App\Models\AuditLog;
 use App\Services\Auth\CustomAuthService;
 use Illuminate\Support\Facades\Route;
@@ -49,6 +56,13 @@ Route::name('auth.')->group(function () {
     Route::post('/logout', [LogoutController::class, 'logout'])->name('logout')->middleware('custom.auth');
 });
 
+// Public Career Portal
+Route::prefix('careers')->name('careers.')->group(function () {
+    Route::get('/', [CareerController::class, 'index'])->name('index');
+    Route::get('/{job}', [CareerController::class, 'show'])->name('show');
+    Route::post('/{job}/apply', [CareerController::class, 'apply'])->name('apply');
+});
+
 // Protected Routes
 Route::middleware(['custom.auth'])->group(function () {
     // Dashboard
@@ -65,6 +79,7 @@ Route::middleware(['custom.auth'])->group(function () {
     })->name('dashboard');
 
     // Employee Management
+    Route::get('employees/search', [EmployeeController::class, 'search'])->name('employees.search')->middleware('permission:employees.view');
     Route::resource('employees', EmployeeController::class)->except(['show'])->middleware('permission:employees.view');
     Route::get('employees/{employee}', [EmployeeController::class, 'show'])->name('employees.show');
     Route::resource('departments', DepartmentController::class)->except(['create', 'edit'])->middleware('permission:departments.view');
@@ -90,6 +105,12 @@ Route::middleware(['custom.auth'])->group(function () {
         Route::post('/clock-out', [AttendanceController::class, 'clockOut'])->name('clock-out');
         Route::get('/calendar', [AttendanceController::class, 'calendar'])->name('calendar');
     });
+    Route::prefix('shifts')->name('shifts.')->middleware('permission:attendance.manage')->group(function () {
+        Route::get('/', [ShiftController::class, 'index'])->name('index');
+        Route::post('/', [ShiftController::class, 'store'])->name('store');
+        Route::put('/{shift}', [ShiftController::class, 'update'])->name('update');
+        Route::delete('/{shift}', [ShiftController::class, 'destroy'])->name('destroy');
+    });
     Route::prefix('leave')->name('leave.')->group(function () {
         Route::get('/', [LeaveController::class, 'index'])->name('index');
         Route::get('/create', [LeaveController::class, 'create'])->name('create');
@@ -101,16 +122,32 @@ Route::middleware(['custom.auth'])->group(function () {
     // Recruitment
     Route::resource('jobs', JobPostController::class)->except(['edit']);
     Route::resource('applicants', ApplicantController::class)->only(['index', 'create', 'store', 'show']);
+    Route::post('applicants/{applicant}/hire', [ApplicantController::class, 'hire'])->name('applicants.hire');
     Route::resource('interviews', InterviewController::class)->only(['index', 'create', 'store', 'update']);
 
     // Performance
+    Route::get('reviews/analytics', [ReviewController::class, 'analytics'])->name('reviews.analytics');
     Route::resource('reviews', ReviewController::class)->only(['index', 'create', 'store', 'show', 'update']);
+    Route::prefix('performance')->name('performance.')->group(function () {
+        Route::get('templates', [FormTemplateController::class, 'index'])->name('templates.index');
+        Route::post('templates', [FormTemplateController::class, 'store'])->name('templates.store');
+        Route::put('templates/{template}', [FormTemplateController::class, 'update'])->name('templates.update');
+        Route::delete('templates/{template}', [FormTemplateController::class, 'destroy'])->name('templates.destroy');
+        Route::get('calibration', [CalibrationController::class, 'index'])->name('calibration.index');
+        Route::post('calibration/{review}', [CalibrationController::class, 'update'])->name('calibration.update');
+        Route::get('bonuses', [BonusController::class, 'index'])->name('bonuses.index');
+    });
     Route::resource('goals', GoalController::class)->only(['index', 'store', 'update']);
     Route::resource('feedback', FeedbackController::class)->only(['index', 'store']);
 
     // Benefits
     Route::resource('benefits', BenefitController::class)->only(['index', 'store', 'update']);
     Route::resource('enrollments', EnrollmentController::class)->only(['index', 'store', 'destroy']);
+    Route::prefix('cobra')->name('cobra.')->middleware('permission:benefits.manage')->group(function () {
+        Route::get('/', [CobraController::class, 'index'])->name('index');
+        Route::post('/', [CobraController::class, 'store'])->name('store');
+        Route::post('/{coverage}/terminate', [CobraController::class, 'terminate'])->name('terminate');
+    });
 
     // Notifications
     Route::prefix('notifications')->name('notifications.')->group(function () {
@@ -118,6 +155,12 @@ Route::middleware(['custom.auth'])->group(function () {
         Route::get('/unread-count', [NotificationController::class, 'unreadCount'])->name('unread-count');
         Route::post('/{notification}/read', [NotificationController::class, 'markAsRead'])->name('read');
         Route::post('/read-all', [NotificationController::class, 'markAllAsRead'])->name('read-all');
+    });
+
+    // Reports
+    Route::prefix('reports')->name('reports.')->middleware('permission:audit.view')->group(function () {
+        Route::get('/', [ReportController::class, 'index'])->name('index');
+        Route::post('/', [ReportController::class, 'generate'])->name('generate');
     });
 
     // Audit Logs

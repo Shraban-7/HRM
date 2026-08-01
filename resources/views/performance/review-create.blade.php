@@ -19,6 +19,14 @@
             @error('review_date')<span class="text-red-500 text-sm">{{ $message }}</span>@enderror
         </div>
         <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Form Template</label>
+            <select name="form_template_id" class="w-full border border-gray-300 rounded px-3 py-2">
+                <option value="">No Template</option>
+                @foreach($templates ?? [] as $template)<option value="{{ $template->id }}" @selected(old('form_template_id') == $template->id)>{{ $template->name }}</option>@endforeach
+            </select>
+            @error('form_template_id')<span class="text-red-500 text-sm">{{ $message }}</span>@enderror
+        </div>
+        <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Rating (1-5)</label>
             <select name="rating" class="w-full border border-gray-300 rounded px-3 py-2">
                 <option value="">No Rating</option>

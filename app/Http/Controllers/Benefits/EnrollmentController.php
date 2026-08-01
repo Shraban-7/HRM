@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Benefits;
 
+use App\Events\BenefitEnrollmentChanged;
 use App\Http\Controllers\Controller;
 use App\Models\BenefitEnrollment;
 use Illuminate\Http\Request;
@@ -30,7 +31,9 @@ class EnrollmentController extends Controller
                 ->with('error', 'No employee profile is linked to your account.');
         }
 
-        BenefitEnrollment::create($request->all() + ['employee_id' => $employee->id, 'status' => 'active']);
+        $enrollment = BenefitEnrollment::create($request->all() + ['employee_id' => $employee->id, 'status' => 'active']);
+
+        event(new BenefitEnrollmentChanged($enrollment, 'created'));
 
         return redirect()->route('enrollments.index')->with('success', 'Enrolled successfully.');
     }
@@ -38,6 +41,8 @@ class EnrollmentController extends Controller
     public function destroy(BenefitEnrollment $enrollment)
     {
         $enrollment->update(['status' => 'cancelled']);
+
+        event(new BenefitEnrollmentChanged($enrollment->fresh(), 'cancelled'));
 
         return redirect()->route('enrollments.index')->with('success', 'Enrollment cancelled.');
     }
