@@ -9,7 +9,7 @@
             <a href="{{ route('attendance.calendar') }}" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"><i class="fas fa-calendar mr-1"></i>Calendar</a>
         </div>
     </div>
-    <table id="attendance-table" class="w-full datatable">
+    <table id="attendance-table" class="w-full">
         <thead>
             <tr class="text-left text-sm text-gray-500 border-b">
                 <th class="pb-2">ID</th>

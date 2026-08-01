@@ -15,7 +15,7 @@
             </select>
         </div>
     </div>
-    <table id="payslips-table" class="w-full datatable">
+    <table id="payslips-table" class="w-full">
         <thead>
             <tr class="text-left text-sm text-gray-500 border-b">
                 <th class="pb-2">ID</th>
@@ -30,7 +30,7 @@
         </thead>
         <tbody>
             @foreach($payslips ?? [] as $payslip)
-            <tr data-employee-id="{{ $payslip->employee_id }}">
+            <tr data-employee-id="{{ $payslip->employee_id }}" data-status="{{ $payslip->status ?? 'completed' }}">
                 <td class="py-2">{{ $payslip->id }}</td>
                 <td class="py-2">{{ $payslip->employee->user->username ?? 'N/A' }}</td>
                 <td class="py-2">#{{ $payslip->payroll_id }}</td>
@@ -48,3 +48,37 @@
     </table>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+$(document).ready(function() {
+    // Populate employee filter from table data
+    const $employeeFilter = $('#employee-filter');
+    const $statusFilter = $('#status-filter');
+    const $table = $('#payslips-table');
+    
+    $table.find('tbody tr').each(function() {
+        const name = $(this).find('td:eq(1)').text().trim();
+        if (name && !$employeeFilter.find('option[value="' + name + '"]').length) {
+            $employeeFilter.append('<option value="' + name + '">' + name + '</option>');
+        }
+    });
+
+    // Filter by employee name
+    $employeeFilter.on('change', function() {
+        const val = $(this).val();
+        $table.DataTable().column(1).search(val).draw();
+    });
+
+    // Filter by status using data-status attribute
+    $statusFilter.on('change', function() {
+        const val = $(this).val();
+        if (val) {
+            $table.DataTable().column(6).search(val).draw();
+        } else {
+            $table.DataTable().column(6).search('').draw();
+        }
+    });
+});
+</script>
+@endpush

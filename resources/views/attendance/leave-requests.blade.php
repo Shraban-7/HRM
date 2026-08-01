@@ -80,4 +80,23 @@
         </table>
     </div>
 </div>
+@push('scripts')
+<script>
+$(document).ready(function() {
+    $('#start_date, #end_date').on('change', function() {
+        const start = $('#start_date').val();
+        const end = $('#end_date').val();
+        if (start && end) {
+            const startDate = new Date(start);
+            const endDate = new Date(end);
+            const diffTime = Math.abs(endDate - startDate);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            $('#leave-days-count').text(diffDays + ' day' + (diffDays > 1 ? 's' : ''));
+        } else {
+            $('#leave-days-count').text('Select dates to calculate days');
+        }
+    });
+});
+</script>
+@endpush
 @endsection
