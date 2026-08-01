@@ -4,7 +4,8 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         Schema::create('payslips', function (Blueprint $table) {
@@ -16,6 +17,7 @@ return new class extends Migration {
             $table->decimal('net', 12, 2)->default(0);
             $table->timestamp('issued_at')->nullable();
             $table->string('pdf_path')->nullable();
+            $table->index(['payroll_id', 'employee_id'], 'idx_payslips_payroll_emp');
             $table->timestamps();
         });
     }

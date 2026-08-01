@@ -3,58 +3,71 @@
 namespace App\Http\Controllers\Employee;
 
 use App\Http\Controllers\Controller;
-use App\Models\Employee;
+use App\Http\Requests\Employee\StoreEmployeeRequest;
+use App\Http\Requests\Employee\UpdateEmployeeRequest;
 use App\Models\Department;
-use App\Models\User;
-use App\Helpers\HashHelper;
-use Illuminate\Http\Request;
+use App\Models\Employee;
+use App\Models\EmployeeBankDetail;
+use App\Services\Employee\EmployeeService;
+use Illuminate\Support\Facades\DB;
 
 class EmployeeController extends Controller
 {
+    protected EmployeeService $employeeService;
+
+    public function __construct(EmployeeService $employeeService)
+    {
+        $this->employeeService = $employeeService;
+        $this->authorizeResource(Employee::class, 'employee');
+    }
+
     public function index()
     {
         $employees = Employee::with(['user', 'department'])->paginate(15);
+
         return view('employee.index', compact('employees'));
     }
 
     public function create()
     {
         $departments = Department::all();
-        return view('employee.create', compact('departments'));
+        $managers = Employee::with('user')->where('status', 'active')->get();
+
+        return view('employee.create', compact('departments', 'managers'));
     }
 
-    public function store(Request $request)
+    public function store(StoreEmployeeRequest $request)
     {
-        $request->validate([
-            'email' => 'required|email|unique:users,email',
-            'username' => 'required|string|unique:users,username',
-            'first_name' => 'required|string',
-            'last_name' => 'required|string',
-            'department_id' => 'required|exists:departments,id',
-            'employee_id' => 'required|string|unique:employees,employee_id',
-            'hire_date' => 'required|date',
-            'designation' => 'required|string',
-            'salary' => 'required|numeric|min:0',
+        $validated = $request->validated();
+
+        $userData = [
+            'email' => $validated['email'],
+            'username' => $validated['username'],
+            'status' => 'active',
+        ];
+
+        $employeeData = $request->only([
+            'department_id', 'employee_id', 'hire_date', 'designation', 'salary',
+            'first_name', 'last_name', 'phone', 'date_of_birth', 'gender',
+            'marital_status', 'blood_group', 'address', 'employment_type',
+            'manager_id',
         ]);
 
-        $salt = HashHelper::generateSalt();
-        $user = User::create([
-            'email' => $request->input('email'),
-            'username' => $request->input('username'),
-            'password_hash' => HashHelper::hashPassword('changeme123', $salt),
-            'salt' => $salt,
-            'status' => 'active',
-        ]);
+        DB::transaction(function () use ($userData, $employeeData, $validated) {
+            $employee = $this->employeeService->createEmployee($userData, $employeeData);
 
-        $employee = Employee::create([
-            'user_id' => $user->id,
-            'department_id' => $request->input('department_id'),
-            'employee_id' => $request->input('employee_id'),
-            'hire_date' => $request->input('hire_date'),
-            'designation' => $request->input('designation'),
-            'salary' => $request->input('salary'),
-            'status' => 'active',
-        ]);
+            if (! empty($validated['bank_name']) || ! empty($validated['account_number'])) {
+                EmployeeBankDetail::create([
+                    'employee_id' => $employee->id,
+                    'bank_name' => $validated['bank_name'] ?? null,
+                    'account_name' => $validated['account_name'] ?? null,
+                    'account_number' => $validated['account_number'] ?? null,
+                    'routing_number' => $validated['routing_number'] ?? null,
+                    'swift_code' => $validated['swift_code'] ?? null,
+                    'tax_id' => $validated['tax_id'] ?? null,
+                ]);
+            }
+        });
 
         return redirect()->route('employees.index')
             ->with('success', 'Employee created successfully.');
@@ -62,26 +75,35 @@ class EmployeeController extends Controller
 
     public function show(Employee $employee)
     {
-        $employee->load(['user', 'department', 'payslips', 'attendance', 'leaveRequests']);
+        $this->authorize('view', $employee);
+        $employee->load(['user', 'department', 'payslips', 'attendance', 'leaveRequests', 'bankDetail', 'emergencyContacts', 'manager']);
+
         return view('employee.show', compact('employee'));
     }
 
     public function edit(Employee $employee)
     {
         $departments = Department::all();
-        return view('employee.edit', compact('employee', 'departments'));
+        $managers = Employee::with('user')->where('status', 'active')->where('id', '!=', $employee->id)->get();
+
+        return view('employee.edit', compact('employee', 'departments', 'managers'));
     }
 
-    public function update(Request $request, Employee $employee)
+    public function update(UpdateEmployeeRequest $request, Employee $employee)
     {
-        $request->validate([
-            'department_id' => 'required|exists:departments,id',
-            'designation' => 'required|string',
-            'salary' => 'required|numeric|min:0',
-            'status' => 'required|in:active,inactive,terminated',
-        ]);
+        $validated = $request->validated();
 
-        $employee->update($request->only(['department_id', 'designation', 'salary', 'status']));
+        $this->employeeService->updateEmployee($employee, $validated);
+
+        $bankData = $request->only(['bank_name', 'account_name', 'account_number', 'routing_number', 'swift_code', 'tax_id']);
+
+        if (array_filter($bankData)) {
+            if ($employee->bankDetail) {
+                $employee->bankDetail->update($bankData);
+            } else {
+                EmployeeBankDetail::create($bankData + ['employee_id' => $employee->id]);
+            }
+        }
 
         return redirect()->route('employees.index')
             ->with('success', 'Employee updated successfully.');
@@ -89,7 +111,7 @@ class EmployeeController extends Controller
 
     public function destroy(Employee $employee)
     {
-        $employee->update(['status' => 'terminated']);
+        $this->employeeService->terminateEmployee($employee);
 
         return redirect()->route('employees.index')
             ->with('success', 'Employee terminated successfully.');

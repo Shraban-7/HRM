@@ -4,24 +4,23 @@ namespace Tests\Feature;
 
 use App\Models\Employee;
 use App\Models\Payroll;
+use App\Models\Role;
 use App\Models\User;
-use App\Helpers\HashHelper;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class PayrollTest extends TestCase
 {
     protected function loginAsAdmin(): void
     {
-        $salt = HashHelper::generateSalt();
         $user = User::create([
             'email' => 'payroll@test.com',
             'username' => 'payroll_admin',
-            'password_hash' => HashHelper::hashPassword('password', $salt),
-            'salt' => $salt,
+            'password' => Hash::make('password'),
             'status' => 'active',
         ]);
 
-        $role = \App\Models\Role::create(['name' => 'Payroll Admin', 'slug' => 'payroll_admin']);
+        $role = Role::create(['name' => 'Payroll Admin', 'slug' => 'payroll_admin']);
         $user->roles()->attach($role);
 
         $this->session([
@@ -59,8 +58,7 @@ class PayrollTest extends TestCase
         $user = User::create([
             'email' => 'emp@test.com',
             'username' => 'emp_test',
-            'password_hash' => HashHelper::hashPassword('password', HashHelper::generateSalt()),
-            'salt' => HashHelper::generateSalt(),
+            'password' => Hash::make('password'),
             'status' => 'active',
         ]);
         Employee::factory()->active()->create(['user_id' => $user->id, 'salary' => 50000]);

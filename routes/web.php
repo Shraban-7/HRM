@@ -1,34 +1,36 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Attendance\AttendanceController;
+use App\Http\Controllers\Attendance\LeaveController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
-use App\Http\Controllers\Auth\ResetPasswordController;
+use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
+use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Auth\ResetPasswordController;
+use App\Http\Controllers\Benefits\BenefitController;
+use App\Http\Controllers\Benefits\EnrollmentController;
 use App\Http\Controllers\Dashboard\EmployeeDashboardController;
-use App\Http\Controllers\Dashboard\ManagerDashboardController;
 use App\Http\Controllers\Dashboard\HRDashboardController;
-use App\Http\Controllers\Employee\EmployeeController;
+use App\Http\Controllers\Dashboard\ManagerDashboardController;
 use App\Http\Controllers\Employee\DepartmentController;
+use App\Http\Controllers\Employee\EmployeeController;
 use App\Http\Controllers\Employee\OrgChartController;
+use App\Http\Controllers\Notification\NotificationController;
 use App\Http\Controllers\Payroll\PayrollController;
 use App\Http\Controllers\Payroll\PayslipController;
 use App\Http\Controllers\Payroll\TaxController;
-use App\Http\Controllers\Attendance\AttendanceController;
-use App\Http\Controllers\Attendance\LeaveController;
-use App\Http\Controllers\Attendance\ShiftController;
-use App\Http\Controllers\Recruitment\JobPostController;
+use App\Http\Controllers\Performance\FeedbackController;
+use App\Http\Controllers\Performance\GoalController;
+use App\Http\Controllers\Performance\ReviewController;
 use App\Http\Controllers\Recruitment\ApplicantController;
 use App\Http\Controllers\Recruitment\InterviewController;
-use App\Http\Controllers\Performance\ReviewController;
-use App\Http\Controllers\Performance\GoalController;
-use App\Http\Controllers\Performance\FeedbackController;
-use App\Http\Controllers\Benefits\BenefitController;
-use App\Http\Controllers\Benefits\EnrollmentController;
+use App\Http\Controllers\Recruitment\JobPostController;
+use App\Models\AuditLog;
+use App\Services\Auth\CustomAuthService;
+use Illuminate\Support\Facades\Route;
 
 // Root redirect.
-Route::get('/', function (App\Services\Auth\CustomAuthService $authService) {
+Route::get('/', function (CustomAuthService $authService) {
     return $authService->isAuthenticated()
         ? redirect()->route('dashboard')
         : redirect()->route('auth.login');
@@ -37,13 +39,13 @@ Route::get('/', function (App\Services\Auth\CustomAuthService $authService) {
 // Public Auth Routes
 Route::name('auth.')->group(function () {
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
-    Route::post('/login', [LoginController::class, 'login']);
+    Route::post('/login', [LoginController::class, 'login'])->middleware('throttle:6,1');
     Route::get('/register', [RegisterController::class, 'showRegistrationForm'])->name('register');
-    Route::post('/register', [RegisterController::class, 'register']);
+    Route::post('/register', [RegisterController::class, 'register'])->middleware('throttle:6,1');
     Route::get('/forgot-password', [ForgotPasswordController::class, 'showForgotForm'])->name('forgot-password');
-    Route::post('/forgot-password', [ForgotPasswordController::class, 'sendResetLink']);
+    Route::post('/forgot-password', [ForgotPasswordController::class, 'sendResetLink'])->middleware('throttle:6,1');
     Route::get('/reset-password/{token}', [ResetPasswordController::class, 'showResetForm'])->name('reset-password');
-    Route::post('/reset-password', [ResetPasswordController::class, 'reset']);
+    Route::post('/reset-password', [ResetPasswordController::class, 'reset'])->middleware('throttle:6,1');
     Route::post('/logout', [LogoutController::class, 'logout'])->name('logout')->middleware('custom.auth');
 });
 
@@ -58,7 +60,8 @@ Route::middleware(['custom.auth'])->group(function () {
         if (in_array('manager', $roles)) {
             return app(ManagerDashboardController::class)->index();
         }
-        return app(EmployeeDashboardController::class)->index(app(\App\Services\Auth\CustomAuthService::class));
+
+        return app(EmployeeDashboardController::class)->index(app(CustomAuthService::class));
     })->name('dashboard');
 
     // Employee Management
@@ -109,9 +112,18 @@ Route::middleware(['custom.auth'])->group(function () {
     Route::resource('benefits', BenefitController::class)->only(['index', 'store', 'update']);
     Route::resource('enrollments', EnrollmentController::class)->only(['index', 'store', 'destroy']);
 
+    // Notifications
+    Route::prefix('notifications')->name('notifications.')->group(function () {
+        Route::get('/', [NotificationController::class, 'index'])->name('index');
+        Route::get('/unread-count', [NotificationController::class, 'unreadCount'])->name('unread-count');
+        Route::post('/{notification}/read', [NotificationController::class, 'markAsRead'])->name('read');
+        Route::post('/read-all', [NotificationController::class, 'markAllAsRead'])->name('read-all');
+    });
+
     // Audit Logs
     Route::get('audit-logs', function () {
-        $logs = \App\Models\AuditLog::with('user')->orderBy('created_at', 'desc')->paginate(50);
+        $logs = AuditLog::with('user')->orderBy('created_at', 'desc')->paginate(50);
+
         return view('layouts.audit', compact('logs'));
     })->name('audit.index')->middleware('permission:audit.view');
 });

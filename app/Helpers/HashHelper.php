@@ -2,17 +2,18 @@
 
 namespace App\Helpers;
 
+use Illuminate\Support\Facades\Hash;
+
 class HashHelper
 {
-    public static function hashPassword(string $password, string $salt): string
+    public static function hashPassword(string $password, string $salt = ''): string
     {
-        $pepper = config('hrm.pepper', '');
-        return hash('sha256', $salt . $password . $pepper);
+        return Hash::make($password);
     }
 
     public static function verifyPassword(string $password, string $salt, string $hash): bool
     {
-        return self::hashPassword($password, $salt) === $hash;
+        return Hash::check($password, $hash);
     }
 
     public static function generateSalt(int $length = 32): string

@@ -2,26 +2,25 @@
 
 namespace Tests\Feature;
 
-use App\Models\Employee;
 use App\Models\Department;
+use App\Models\Employee;
+use App\Models\Role;
 use App\Models\User;
-use App\Helpers\HashHelper;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class EmployeeTest extends TestCase
 {
     protected function loginAsAdmin(): void
     {
-        $salt = HashHelper::generateSalt();
         $user = User::create([
             'email' => 'admin@test.com',
             'username' => 'admin',
-            'password_hash' => HashHelper::hashPassword('password', $salt),
-            'salt' => $salt,
+            'password' => Hash::make('password'),
             'status' => 'active',
         ]);
 
-        $role = \App\Models\Role::create(['name' => 'HR Admin', 'slug' => 'hr_admin']);
+        $role = Role::create(['name' => 'HR Admin', 'slug' => 'hr_admin']);
         $user->roles()->attach($role);
 
         $this->session([
@@ -46,6 +45,8 @@ class EmployeeTest extends TestCase
         $response = $this->post(route('employees.store'), [
             'email' => 'newemp@test.com',
             'username' => 'newemp',
+            'first_name' => 'Jane',
+            'last_name' => 'Doe',
             'department_id' => $department->id,
             'employee_id' => 'EMP-TEST-001',
             'hire_date' => '2024-01-15',

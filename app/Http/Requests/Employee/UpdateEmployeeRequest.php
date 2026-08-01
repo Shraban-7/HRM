@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Employee;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateEmployeeRequest extends FormRequest
 {
@@ -18,6 +19,22 @@ class UpdateEmployeeRequest extends FormRequest
             'designation' => 'required|string|max:255',
             'salary' => 'required|numeric|min:0|max:99999999.99',
             'status' => 'required|in:active,inactive,terminated',
+            'first_name' => 'nullable|string|max:100',
+            'last_name' => 'nullable|string|max:100',
+            'phone' => 'nullable|string|max:20',
+            'date_of_birth' => 'nullable|date|before:today',
+            'gender' => 'nullable|in:male,female,other',
+            'marital_status' => 'nullable|string|max:20',
+            'blood_group' => 'nullable|string|max:10',
+            'address' => 'nullable|string|max:500',
+            'employment_type' => 'nullable|in:full_time,part_time,contract,intern',
+            'manager_id' => ['nullable', Rule::exists('employees', 'id')],
+            'bank_name' => 'nullable|string|max:100',
+            'account_name' => 'nullable|string|max:100',
+            'account_number' => 'nullable|string|max:50',
+            'routing_number' => 'nullable|string|max:50',
+            'swift_code' => 'nullable|string|max:20',
+            'tax_id' => 'nullable|string|max:50',
         ];
     }
 

@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\Auth\TokenService;
-use App\Helpers\HashHelper;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class ResetPasswordController extends Controller
 {
@@ -31,18 +31,16 @@ class ResetPasswordController extends Controller
         ]);
 
         $user = User::where('email', $request->input('email'))->first();
-        if (!$user) {
+        if (! $user) {
             return back()->withErrors(['email' => 'User not found.']);
         }
 
-        if (!$this->tokenService->validateResetToken($request->input('token'), $user->id)) {
+        if (! $this->tokenService->validateResetToken($request->input('token'), $user->id)) {
             return back()->withErrors(['token' => 'Invalid or expired token.']);
         }
 
-        $salt = HashHelper::generateSalt();
         $user->update([
-            'password_hash' => HashHelper::hashPassword($request->input('password'), $salt),
-            'salt' => $salt,
+            'password' => Hash::make($request->input('password')),
         ]);
 
         return redirect()->route('auth.login')

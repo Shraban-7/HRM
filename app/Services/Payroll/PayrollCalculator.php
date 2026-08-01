@@ -2,9 +2,9 @@
 
 namespace App\Services\Payroll;
 
+use App\Events\PayrollProcessed;
 use App\Models\Employee;
 use App\Models\Payroll;
-use App\Events\PayrollProcessed;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -27,7 +27,11 @@ class PayrollCalculator
         $results = [];
 
         foreach ($employees as $employee) {
-            $results[] = $this->calculateEmployeePay($employee, $payroll->period_start, $payroll->period_end);
+            $results[] = $this->calculateEmployeePay(
+                $employee,
+                Carbon::parse($payroll->period_start),
+                Carbon::parse($payroll->period_end)
+            );
         }
 
         return $results;
@@ -111,6 +115,6 @@ class PayrollCalculator
     protected function getMonthlySalary(Employee $employee, Carbon $periodStart, Carbon $periodEnd): float
     {
         // Full period salary
-        return (float)$employee->salary;
+        return (float) $employee->salary;
     }
 }

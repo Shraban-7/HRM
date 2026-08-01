@@ -5,15 +5,19 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\Auth\TokenService;
+use App\Services\Notification\EmailNotificationService;
 use Illuminate\Http\Request;
 
 class ForgotPasswordController extends Controller
 {
     protected TokenService $tokenService;
 
-    public function __construct(TokenService $tokenService)
+    protected EmailNotificationService $emailService;
+
+    public function __construct(TokenService $tokenService, EmailNotificationService $emailService)
     {
         $this->tokenService = $tokenService;
+        $this->emailService = $emailService;
     }
 
     public function showForgotForm()
@@ -29,7 +33,7 @@ class ForgotPasswordController extends Controller
 
         if ($user) {
             $reset = $this->tokenService->createResetToken($user);
-            // In production, send email with $reset->plain_token
+            $this->emailService->sendPasswordResetEmail($user, $reset->plain_token);
         }
 
         return redirect()->route('auth.login')

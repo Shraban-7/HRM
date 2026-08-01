@@ -2,9 +2,13 @@
 
 namespace App\Services\Notification;
 
-use App\Models\User;
 use App\Models\LeaveRequest;
 use App\Models\Payroll;
+use App\Models\User;
+use App\Notifications\LeaveStatusNotification;
+use App\Notifications\PayrollProcessedNotification;
+use App\Notifications\ResetPasswordNotification;
+use App\Notifications\WelcomeNotification;
 use Illuminate\Support\Facades\Mail;
 
 class EmailNotificationService
@@ -14,15 +18,7 @@ class EmailNotificationService
      */
     public function sendWelcomeEmail(User $user): void
     {
-        $data = [
-            'name' => $user->username,
-            'email' => $user->email,
-        ];
-
-        Mail::send('emails.welcome', $data, function ($message) use ($user) {
-            $message->to($user->email, $user->username)
-                    ->subject('Welcome to the Company!');
-        });
+        $user->notify(new WelcomeNotification($user));
     }
 
     /**
@@ -30,17 +26,7 @@ class EmailNotificationService
      */
     public function sendPasswordResetEmail(User $user, string $token): void
     {
-        $data = [
-            'name' => $user->username,
-            'email' => $user->email,
-            'token' => $token,
-            'resetUrl' => route('auth.reset-password', ['token' => $token]),
-        ];
-
-        Mail::send('emails.password-reset', $data, function ($message) use ($user) {
-            $message->to($user->email, $user->username)
-                    ->subject('Reset Your Password');
-        });
+        $user->notify(new ResetPasswordNotification($token));
     }
 
     /**
@@ -49,28 +35,13 @@ class EmailNotificationService
     public function sendLeaveApprovalEmail(LeaveRequest $leave): void
     {
         $employee = $leave->employee;
-        $user = $employee->user;
+        $user = $employee?->user;
 
-        if (!$user) {
+        if (! $user) {
             return;
         }
 
-        $data = [
-            'name' => $user->username,
-            'type' => $leave->type,
-            'start_date' => $leave->start_date,
-            'end_date' => $leave->end_date,
-            'status' => $leave->status,
-        ];
-
-        $subject = $leave->status === 'approved'
-            ? 'Leave Request Approved'
-            : 'Leave Request Rejected';
-
-        Mail::send('emails.leave-status', $data, function ($message) use ($user, $subject) {
-            $message->to($user->email, $user->username)
-                    ->subject($subject);
-        });
+        $user->notify(new LeaveStatusNotification($leave));
     }
 
     /**
@@ -78,27 +49,15 @@ class EmailNotificationService
      */
     public function sendPayrollNotification(Payroll $payroll): void
     {
-        // Notify all active employees with payslips in this payroll
         $payroll->load('payslips.employee.user');
 
         foreach ($payroll->payslips as $payslip) {
-            $user = $payslip->employee->user;
-            if (!$user) {
+            $user = $payslip->employee?->user;
+            if (! $user) {
                 continue;
             }
 
-            $data = [
-                'name' => $user->username,
-                'period_start' => $payroll->period_start,
-                'period_end' => $payroll->period_end,
-                'net' => $payslip->net,
-                'payroll_id' => $payroll->id,
-            ];
-
-            Mail::send('emails.payroll-processed', $data, function ($message) use ($user) {
-                $message->to($user->email, $user->username)
-                        ->subject('Your Payslip is Ready');
-            });
+            $user->notify(new PayrollProcessedNotification($payroll, (float) $payslip->net));
         }
     }
 
@@ -111,12 +70,12 @@ class EmailNotificationService
             if ($recipient instanceof User) {
                 Mail::send($view, array_merge($data, ['user' => $recipient]), function ($message) use ($recipient, $subject) {
                     $message->to($recipient->email, $recipient->username)
-                            ->subject($subject);
+                        ->subject($subject);
                 });
             } else {
                 Mail::send($view, $data, function ($message) use ($recipient, $subject) {
                     $message->to($recipient['email'] ?? $recipient, $recipient['name'] ?? '')
-                            ->subject($subject);
+                        ->subject($subject);
                 });
             }
         }

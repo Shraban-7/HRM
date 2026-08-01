@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Payroll;
 
 use App\Http\Controllers\Controller;
-use App\Models\Payroll;
 use App\Models\Employee;
+use App\Models\Payroll;
 use Illuminate\Http\Request;
 
 class PayrollController extends Controller
@@ -12,6 +12,7 @@ class PayrollController extends Controller
     public function index()
     {
         $payrolls = Payroll::with('payslips.employee.user')->orderBy('id', 'desc')->paginate(15);
+
         return view('payroll.index', compact('payrolls'));
     }
 
@@ -40,12 +41,15 @@ class PayrollController extends Controller
 
     public function show(Payroll $payroll)
     {
+        $this->authorize('view', $payroll);
         $payroll->load('payslips.employee.user');
+
         return view('payroll.show', compact('payroll'));
     }
 
     public function calculate(Payroll $payroll)
     {
+        $this->authorize('run', $payroll);
         $employees = Employee::where('status', 'active')->get();
         $totalAmount = 0;
 

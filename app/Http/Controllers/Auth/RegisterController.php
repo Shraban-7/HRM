@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Helpers\HashHelper;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class RegisterController extends Controller
 {
@@ -22,12 +22,10 @@ class RegisterController extends Controller
             'password' => 'required|string|min:8|confirmed',
         ]);
 
-        $salt = HashHelper::generateSalt();
         $user = User::create([
             'email' => $request->input('email'),
             'username' => $request->input('username'),
-            'password_hash' => HashHelper::hashPassword($request->input('password'), $salt),
-            'salt' => $salt,
+            'password' => Hash::make($request->input('password')),
             'status' => 'active',
         ]);
 

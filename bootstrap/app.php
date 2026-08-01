@@ -1,5 +1,10 @@
 <?php
 
+use App\Middleware\AuditLogMiddleware;
+use App\Middleware\CustomAuth;
+use App\Middleware\PermissionMiddleware;
+use App\Middleware\RoleMiddleware;
+use App\Middleware\SecurityHeadersMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -13,11 +18,12 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'custom.auth' => \App\Middleware\CustomAuth::class,
-            'role' => \App\Middleware\RoleMiddleware::class,
-            'permission' => \App\Middleware\PermissionMiddleware::class,
-            'audit.log' => \App\Middleware\AuditLogMiddleware::class,
+            'custom.auth' => CustomAuth::class,
+            'role' => RoleMiddleware::class,
+            'permission' => PermissionMiddleware::class,
+            'audit.log' => AuditLogMiddleware::class,
         ]);
+        $middleware->append(SecurityHeadersMiddleware::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

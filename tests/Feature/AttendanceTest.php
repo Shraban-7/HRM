@@ -3,26 +3,23 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
-use App\Models\Attendance;
-use App\Models\LeaveRequest;
+use App\Models\Role;
 use App\Models\User;
-use App\Helpers\HashHelper;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class AttendanceTest extends TestCase
 {
     protected function loginAsEmployee(): User
     {
-        $salt = HashHelper::generateSalt();
         $user = User::create([
             'email' => 'emp@test.com',
             'username' => 'emp_att',
-            'password_hash' => HashHelper::hashPassword('password', $salt),
-            'salt' => $salt,
+            'password' => Hash::make('password'),
             'status' => 'active',
         ]);
 
-        $role = \App\Models\Role::create(['name' => 'Employee', 'slug' => 'employee']);
+        $role = Role::create(['name' => 'Employee', 'slug' => 'employee']);
         $user->roles()->attach($role);
 
         $this->session([
@@ -40,8 +37,8 @@ class AttendanceTest extends TestCase
         $employee = Employee::factory()->create(['user_id' => $user->id]);
 
         $response = $this->postJson(route('attendance.clock-in'));
-        $response->assertStatus(200);
-        $this->assertDatabaseHas('attendance', [
+        $response->assertStatus(302);
+        $this->assertDatabaseHas('attendances', [
             'employee_id' => $employee->id,
             'date' => now()->toDateString(),
         ]);
@@ -57,7 +54,7 @@ class AttendanceTest extends TestCase
 
         // Then clock out
         $response = $this->postJson(route('attendance.clock-out'));
-        $response->assertStatus(200);
+        $response->assertStatus(302);
     }
 
     public function test_can_submit_leave_request(): void

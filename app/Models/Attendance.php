@@ -8,9 +8,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Attendance extends Model
 {
     public $timestamps = false;
-    protected $fillable = ['employee_id', 'date', 'clock_in', 'clock_out', 'status'];
-    protected $primaryKey = null;
-    public $incrementing = false;
+
+    protected $table = 'attendances';
+
+    protected $fillable = ['employee_id', 'date', 'clock_in', 'clock_out', 'status', 'overtime_hours', 'notes'];
+
+    protected $casts = [
+        'clock_in' => 'datetime',
+        'clock_out' => 'datetime',
+    ];
 
     public function employee(): BelongsTo
     {

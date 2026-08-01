@@ -12,7 +12,7 @@ class TaxEngineTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->taxEngine = new TaxEngine();
+        $this->taxEngine = new TaxEngine;
     }
 
     public function test_calculate_tax_within_first_bracket_returns_zero(): void
@@ -23,13 +23,11 @@ class TaxEngineTest extends TestCase
 
     public function test_calculate_tax_across_brackets_returns_cumulative_amount(): void
     {
-        // First 300k: 0%, next 300k: 5%, next 150k: 10%
-        // 750000 - 300000 = 450000 at 5% = 22500, but capped at 300001-600000
-        // (600000-300001) * 0.05 = 14999.95
-        // (750000-600000) * 0.10 = 15000
+        // Bracket 2 (300001-600000) @ 5%: (600000 - 300001) * 0.05 = 14999.95
+        // Bracket 3 (600001-1200000) @ 10%: (750000 - 600001) * 0.10 = 14999.90
         $tax = $this->taxEngine->calculateTax(750000);
         $this->assertGreaterThan(0, $tax);
-        $this->assertEquals(29999.95, $tax); // 14999.95 + 15000
+        $this->assertEquals(29999.85, $tax); // 14999.95 + 14999.90
     }
 
     public function test_get_effective_tax_rate_returns_percentage(): void

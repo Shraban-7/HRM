@@ -24,13 +24,10 @@ class UserFactory extends Factory
      */
     public function definition(): array
     {
-        $salt = \App\Helpers\HashHelper::generateSalt();
-
         return [
             'email' => fake()->unique()->safeEmail(),
             'username' => fake()->unique()->userName(),
-            'password_hash' => \App\Helpers\HashHelper::hashPassword('password', $salt),
-            'salt' => $salt,
+            'password' => static::$password ??= Hash::make('password'),
             'status' => 'active',
             'require_2fa' => false,
             'remember_token' => Str::random(10),

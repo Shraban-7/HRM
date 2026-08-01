@@ -4,7 +4,8 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         Schema::create('payrolls', function (Blueprint $table) {
@@ -13,6 +14,7 @@ return new class extends Migration {
             $table->date('period_end');
             $table->string('status')->default('draft');
             $table->decimal('total_amount', 12, 2)->default(0);
+            $table->index(['status', 'period_start'], 'idx_payrolls_status_period');
             $table->timestamps();
         });
     }

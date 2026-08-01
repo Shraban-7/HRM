@@ -11,6 +11,7 @@ class FeedbackController extends Controller
     public function index()
     {
         $feedback = Feedback::with(['fromUser', 'toUser'])->orderBy('created_at', 'desc')->paginate(15);
+
         return view('performance.feedback', compact('feedback'));
     }
 
@@ -22,7 +23,9 @@ class FeedbackController extends Controller
             'category' => 'required|in:general,performance,teamwork',
         ]);
 
-        Feedback::create($request->all() + ['from_user_id' => auth()->id()]);
+        $user = $this->authenticatedUser();
+        Feedback::create($request->all() + ['from_user_id' => $user?->id]);
+
         return redirect()->route('feedback.index')->with('success', 'Feedback submitted.');
     }
 }

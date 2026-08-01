@@ -4,14 +4,22 @@ namespace App\Http\Controllers\Attendance;
 
 use App\Http\Controllers\Controller;
 use App\Models\LeaveRequest;
-use App\Models\Employee;
+use App\Services\Notification\EmailNotificationService;
 use Illuminate\Http\Request;
 
 class LeaveController extends Controller
 {
+    protected EmailNotificationService $emailService;
+
+    public function __construct(EmailNotificationService $emailService)
+    {
+        $this->emailService = $emailService;
+    }
+
     public function index()
     {
         $leaves = LeaveRequest::with(['employee.user', 'approver'])->orderBy('created_at', 'desc')->paginate(15);
+
         return view('attendance.leave-requests', compact('leaves'));
     }
 
@@ -28,7 +36,12 @@ class LeaveController extends Controller
             'end_date' => 'required|date|after_or_equal:start_date',
         ]);
 
-        $employee = Employee::where('user_id', auth()->id())->firstOrFail();
+        $employee = $this->authenticatedEmployee();
+
+        if (! $employee) {
+            return redirect()->route('leave.index')
+                ->with('error', 'No employee profile is linked to your account.');
+        }
 
         LeaveRequest::create([
             'employee_id' => $employee->id,
@@ -43,13 +56,27 @@ class LeaveController extends Controller
 
     public function approve(LeaveRequest $leave)
     {
-        $leave->update(['status' => 'approved', 'approved_by' => auth()->id(), 'approved_at' => now()]);
+        $this->authorize('approve', $leave);
+        $user = $this->authenticatedUser();
+        $leave->update(['status' => 'approved', 'approved_by' => $user?->id, 'approved_at' => now()]);
+
+        if ($leave->employee?->user) {
+            $this->emailService->sendLeaveApprovalEmail($leave);
+        }
+
         return redirect()->route('leave.index')->with('success', 'Leave approved.');
     }
 
     public function reject(LeaveRequest $leave)
     {
-        $leave->update(['status' => 'rejected', 'approved_by' => auth()->id(), 'approved_at' => now()]);
+        $this->authorize('reject', $leave);
+        $user = $this->authenticatedUser();
+        $leave->update(['status' => 'rejected', 'approved_by' => $user?->id, 'approved_at' => now()]);
+
+        if ($leave->employee?->user) {
+            $this->emailService->sendLeaveApprovalEmail($leave);
+        }
+
         return redirect()->route('leave.index')->with('success', 'Leave rejected.');
     }
 }

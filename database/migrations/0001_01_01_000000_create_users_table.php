@@ -12,8 +12,7 @@ return new class extends Migration
             $table->id();
             $table->string('email')->unique();
             $table->string('username')->unique();
-            $table->string('password_hash');
-            $table->string('salt');
+            $table->string('password');
             $table->string('status')->default('active');
             $table->boolean('require_2fa')->default(false);
             $table->rememberToken();

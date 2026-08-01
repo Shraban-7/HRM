@@ -3,69 +3,31 @@
 namespace App\Services\Notification;
 
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
+use App\Notifications\InAppNotification;
+use Illuminate\Database\Eloquent\Collection;
 
 class InAppNotificationService
 {
     /**
-     * Store an in-app notification for a user.
-     * Uses a simple JSON-based storage approach with a notifications meta table.
-     * For a production system, consider a dedicated notifications table.
+     * Store an in-app notification for a user via native database notifications.
      */
     public function notify(User $user, string $message, string $type = 'info'): void
     {
-        $notification = [
-            'id' => uniqid('notif_', true),
-            'type' => $type,
-            'message' => $message,
-            'read' => false,
-            'created_at' => now()->toDateTimeString(),
-        ];
-
-        $existing = DB::table('user_meta')
-            ->where('user_id', $user->id)
-            ->where('key', 'notifications')
-            ->first();
-
-        if ($existing) {
-            $notifications = json_decode($existing->value, true) ?? [];
-            array_unshift($notifications, $notification);
-            // Keep only last 100 notifications
-            $notifications = array_slice($notifications, 0, 100);
-
-            DB::table('user_meta')
-                ->where('id', $existing->id)
-                ->update(['value' => json_encode($notifications)]);
-        } else {
-            DB::table('user_meta')->insert([
-                'user_id' => $user->id,
-                'key' => 'notifications',
-                'value' => json_encode([$notification]),
-            ]);
-        }
+        $user->notify(new InAppNotification($message, $type));
     }
 
     /**
      * Get all notifications for a user.
      */
-    public function getNotifications(User $user, bool $unreadOnly = false): array
+    public function getNotifications(User $user, bool $unreadOnly = false): Collection
     {
-        $existing = DB::table('user_meta')
-            ->where('user_id', $user->id)
-            ->where('key', 'notifications')
-            ->first();
-
-        if (!$existing) {
-            return [];
-        }
-
-        $notifications = json_decode($existing->value, true) ?? [];
+        $query = $user->notifications();
 
         if ($unreadOnly) {
-            return array_filter($notifications, fn($n) => !($n['read'] ?? false));
+            $query->whereNull('read_at');
         }
 
-        return $notifications;
+        return $query->latest()->limit(100)->get();
     }
 
     /**
@@ -73,27 +35,11 @@ class InAppNotificationService
      */
     public function markAsRead(User $user, string $notificationId): void
     {
-        $existing = DB::table('user_meta')
-            ->where('user_id', $user->id)
-            ->where('key', 'notifications')
-            ->first();
+        $notification = $user->notifications()->where('id', $notificationId)->first();
 
-        if (!$existing) {
-            return;
+        if ($notification) {
+            $notification->markAsRead();
         }
-
-        $notifications = json_decode($existing->value, true) ?? [];
-
-        foreach ($notifications as &$notification) {
-            if ($notification['id'] === $notificationId) {
-                $notification['read'] = true;
-                break;
-            }
-        }
-
-        DB::table('user_meta')
-            ->where('id', $existing->id)
-            ->update(['value' => json_encode($notifications)]);
     }
 
     /**
@@ -101,24 +47,7 @@ class InAppNotificationService
      */
     public function markAllAsRead(User $user): void
     {
-        $existing = DB::table('user_meta')
-            ->where('user_id', $user->id)
-            ->where('key', 'notifications')
-            ->first();
-
-        if (!$existing) {
-            return;
-        }
-
-        $notifications = json_decode($existing->value, true) ?? [];
-
-        foreach ($notifications as &$notification) {
-            $notification['read'] = true;
-        }
-
-        DB::table('user_meta')
-            ->where('id', $existing->id)
-            ->update(['value' => json_encode($notifications)]);
+        $user->unreadNotifications->markAsRead();
     }
 
     /**
@@ -126,7 +55,7 @@ class InAppNotificationService
      */
     public function getUnreadCount(User $user): int
     {
-        return count($this->getNotifications($user, true));
+        return $user->unreadNotifications()->count();
     }
 
     /**

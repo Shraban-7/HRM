@@ -3,9 +3,9 @@
 namespace App\Services\Auth;
 
 use App\Models\User;
-use App\Helpers\HashHelper;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Session;
-use Illuminate\Support\Facades\Request;
 
 class CustomAuthService
 {
@@ -15,7 +15,7 @@ class CustomAuthService
             ->orWhere('username', $identifier)
             ->first();
 
-        if (!$user) {
+        if (! $user) {
             return null;
         }
 
@@ -23,12 +23,14 @@ class CustomAuthService
             return null;
         }
 
-        if (!HashHelper::verifyPassword($password, $user->salt, $user->password_hash)) {
+        if (! Hash::check($password, $user->password)) {
             $this->incrementLoginAttempts($user);
+
             return null;
         }
 
         $this->clearLoginAttempts($user);
+        Auth::login($user, $remember);
         $this->createUserSession($user, $remember);
 
         return $user;
@@ -36,6 +38,7 @@ class CustomAuthService
 
     public function logout(User $user): void
     {
+        Auth::logout();
         Session::forget('user_id');
         Session::forget('user_roles');
         Session::forget('user_permissions');
@@ -44,12 +47,12 @@ class CustomAuthService
 
     public function validateCredentials(User $user, string $password): bool
     {
-        return HashHelper::verifyPassword($password, $user->salt, $user->password_hash);
+        return Hash::check($password, $user->password);
     }
 
     public function lockAccountIfNeeded(User $user): void
     {
-        $attempts = (int)Session::get('login_attempts_' . $user->id, 0);
+        $attempts = (int) Session::get('login_attempts_'.$user->id, 0);
         if ($attempts >= 5) {
             $user->update(['status' => 'locked']);
         }
@@ -57,16 +60,23 @@ class CustomAuthService
 
     public function getCurrentUser(): ?User
     {
+        $user = Auth::user();
+
+        if ($user) {
+            return $user->load('roles.permissions');
+        }
+
         $userId = Session::get('user_id');
-        if (!$userId) {
+        if (! $userId) {
             return null;
         }
+
         return User::with('roles.permissions')->find($userId);
     }
 
     public function isAuthenticated(): bool
     {
-        return Session::has('user_id');
+        return Auth::check() || Session::has('user_id');
     }
 
     private function createUserSession(User $user, bool $remember): void
@@ -91,8 +101,8 @@ class CustomAuthService
 
     private function incrementLoginAttempts(User $user): void
     {
-        $key = 'login_attempts_' . $user->id;
-        $attempts = (int)Session::get($key, 0) + 1;
+        $key = 'login_attempts_'.$user->id;
+        $attempts = (int) Session::get($key, 0) + 1;
         Session::put($key, $attempts);
 
         if ($attempts >= 5) {
@@ -102,6 +112,6 @@ class CustomAuthService
 
     private function clearLoginAttempts(User $user): void
     {
-        Session::forget('login_attempts_' . $user->id);
+        Session::forget('login_attempts_'.$user->id);
     }
 }
