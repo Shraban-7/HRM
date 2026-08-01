@@ -1,4 +1,4 @@
-# Human Resource Management (HRM) System
+# Enterprise Human Resource Management (HRM) System
 
 > A modern, enterprise-grade Human Resource Management system built with **Laravel 13**, **PHP 8.3**, **Blade**, **Tailwind CSS v4**, **Vite 8**, and **jQuery 3.7**.
 
@@ -6,78 +6,79 @@
 ![PHP](https://img.shields.io/badge/PHP-8.3-777BB4?style=for-the-badge&logo=php&logoColor=white)
 ![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-v4.0-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-v8.0-646CFF?style=for-the-badge&logo=vite&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)
+![Project Type](https://img.shields.io/badge/Project-Solo_Development-blue?style=for-the-badge)
 
 ---
 
 ## 📌 Overview
 
-Managing human resources, payroll calculations, attendance tracking, and performance reviews across growing organizations often requires integrating multiple disparate tools. 
+Managing human resources, payroll calculations, attendance tracking, performance evaluations, and employee benefits across growing organizations often requires integrating multiple disparate tools.
 
 This **HRM System** provides a single unified, secure, layered monolith solution. It simplifies employee onboarding, automates multi-tier progressive tax and payroll calculations, generates downloadable PDF payslips, tracks employee shifts and leave requests, hosts a public recruitment portal, manages performance review cycles, and logs full audit trails for compliance.
+
+> **Note**: This is an independent **solo project** designed, developed, and maintained by a single developer. External contributions are not accepted.
 
 ---
 
 ## 📋 Table of Contents
 
 - [Overview](#-overview)
-- [Key Features](#-key-features)
+- [Key Features & Modules](#-key-features--modules)
 - [Tech Stack](#-tech-stack)
 - [Architecture & Design Patterns](#-architecture--design-patterns)
 - [Prerequisites](#-prerequisites)
-- [Installation](#-installation)
+- [Installation & Setup](#-installation--setup)
 - [Usage & Development](#-usage--development)
 - [Default Demo Credentials](#-default-demo-credentials)
 - [Environment Configuration](#-environment-configuration)
 - [Folder Structure](#-folder-structure)
 - [Testing](#-testing)
-- [Contributing](#-contributing)
-- [License](#-license)
-- [Contact & Support](#-contact--support)
+- [Project Maintainer](#-project-maintainer)
 
 ---
 
-## ✨ Key Features
+## ✨ Key Features & Modules
 
 ### 🔐 1. Authentication & Role-Based Access Control (RBAC)
-- Custom session authentication (`CustomAuthService`) with brute-force rate-limiting (`throttle:6,1`).
-- Role-based permissions (`super_admin`, `hr_admin`, `manager`, `employee`).
-- Secret password hashing pepper support (`HRM_PEPPER`) and account lockout.
+- Custom session authentication service (`CustomAuthService`) with brute-force rate-limiting (`throttle:6,1`).
+- Role-based authorization (`super_admin`, `hr_admin`, `manager`, `employee`) using policies and gates.
+- Secret password hashing pepper support (`HRM_PEPPER`), password reset flows, and automatic account lockout protection.
 
 ### 👥 2. Employee Lifecycle & Organization Structure
-- Onboarding to offboarding/termination workflows.
-- Personal information, profile photos, emergency contacts, and banking details.
-- Interactive Visual Org Chart (`/org-chart`) with recursive department trees and cache invalidation.
+- Full lifecycle management from onboarding to offboarding and termination.
+- Comprehensive employee records (personal data, profile photos, emergency contacts, and banking details).
+- Interactive Visual Org Chart (`/org-chart`) featuring recursive department trees with cache invalidation on structural changes.
 
 ### 💰 3. Automated Payroll & Tax Engine
 - Progressive multi-tier income tax calculation engine (`TaxEngine`).
 - Pre-tax and post-tax deductions (401k, health benefits, custom deductions).
 - Asynchronous batch payroll processing via queued jobs (`ProcessPayrollJob`).
-- Downloadable PDF payslips (`dompdf`).
+- Downloadable PDF payslips with exact breakdown formatting powered by `dompdf`.
 
 ### ⏱️ 4. Attendance, Shifts & Leave Workflows
-- Real-time Clock In / Clock Out tracking with automated duration calculations.
-- Shift scheduling with overtime calculation.
-- Leave management (Paid, Sick, Unpaid) with multi-level approval workflows.
+- Real-time Clock In / Clock Out tracking with automated working duration calculations.
+- Shift scheduling with overtime calculation rules.
+- Leave management (Paid, Sick, Unpaid) with multi-level approval workflows and dynamic leave balance deductions.
 
 ### 💼 5. ATS Recruitment & Public Career Portal
 - Internal Job posting creation and Applicant Tracking System (ATS).
-- Public-facing Career Portal (`/careers`) for candidate applications.
-- Interview scheduling and one-click hiring workflow.
+- Public-facing Career Portal (`/careers`) allowing external candidate applications.
+- Interview scheduling, applicant status tracking, and one-click hiring transition to employee records.
 
 ### 📊 6. Performance Management & Reviews
-- Multi-directional review cycles (Self, Peer, Manager).
-- Goal setting, continuous feedback, and performance calibration dashboard.
-- Automated performance bonus calculations based on rating scales.
+- Multi-directional review cycles (Self, Peer, Manager evaluations).
+- Goal setting, continuous feedback tracking, and performance rating calibration.
+- Automated performance bonus calculations based on company rating scales.
 
 ### 🏥 7. Benefits Catalog & COBRA Compliance
 - Benefit plan administration (Health, Dental, Vision, Retirement).
-- Employee enrollment lifecycle and employer/employee cost splitting.
-- COBRA continuation coverage management and termination tracking.
+- Employee enrollment lifecycle with employer/employee cost-splitting rules.
+- COBRA continuation coverage management, payment tracking, and termination rules.
 
-### 🔔 8. Notifications & Security Audit Trail
-- In-app notification center and background email delivery.
-- Comprehensive security audit log (`AuditLog` middleware) capturing IP addresses, actions, user agents, and affected models.
+### 🔔 8. Notifications, Reports & Security Audit Trail
+- In-app notification center and background transactional email notifications.
+- Flexible analytics and exportable report generation (`ReportController`).
+- Comprehensive security audit log (`AuditLog` middleware) capturing user IP addresses, performed actions, user agents, and affected models.
 
 ---
 
@@ -88,18 +89,18 @@ This **HRM System** provides a single unified, secure, layered monolith solution
 | **Backend Framework** | [Laravel 13](https://laravel.com) | Core MVC web framework (PHP 8.3+) |
 | **Frontend Rendering** | [Blade Engine](https://laravel.com/docs/blade) | Server-rendered HTML templates |
 | **Styling** | [Tailwind CSS v4](https://tailwindcss.com) | Modern utility-first CSS design system |
-| **Client Scripting** | [jQuery 3.7](https://jquery.com) | Interactive UI & AJAX requests |
+| **Client Scripting** | [jQuery 3.7](https://jquery.com) | Interactive UI components & AJAX handlers |
 | **Asset Bundler** | [Vite 8](https://vitejs.dev) | Lightning-fast frontend asset compilation |
-| **Database** | MySQL / PostgreSQL / SQLite | SQLite by default for development & testing |
+| **Database** | SQLite / MySQL 8 / PostgreSQL 15 | SQLite by default for development & testing |
 | **Cache & Queue** | Database / Redis | Database driver by default; Redis supported |
-| **PDF Engine** | Dompdf | Downloadable PDF payslip generator |
-| **Testing** | PHPUnit 12 | Automated unit and feature testing framework |
+| **PDF Engine** | [Dompdf](https://github.com/dompdf/dompdf) | Downloadable PDF payslip generator |
+| **Testing** | [PHPUnit 12](https://phpunit.de) | Automated unit and feature testing framework |
 
 ---
 
 ## 📐 Architecture & Design Patterns
 
-The project follows a **Layered Monolith Architecture**:
+The application is structured as a **Layered Monolith** emphasizing clean separation of concerns and maintainability:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -121,7 +122,7 @@ The project follows a **Layered Monolith Architecture**:
 ```
 
 - **Services**: Encapsulate domain rules (`PayrollCalculator`, `TaxEngine`, `AttendanceProcessor`, `CobraService`).
-- **Repositories**: Abstract persistence layer behind interface contracts in `app/Repositories/Contracts/` backed by cached decorators.
+- **Repositories**: Abstract persistence layer behind interface contracts in `app/Repositories/Contracts/` backed by cached decorators (`CachedEmployeeRepository`, `CachedPayrollRepository`).
 - **Events & Queue Jobs**: Offload intensive processes (emails, PDF payslips, audit records, batch payroll) to background queues.
 
 ---
@@ -130,18 +131,18 @@ The project follows a **Layered Monolith Architecture**:
 
 Ensure your development environment meets the following requirements:
 
-- **PHP**: `^8.3` (Extensions required: `pdo`, `sqlite3` or `pdo_mysql`, `mbstring`, `openssl`, `tokenizer`, `xml`, `ctype`, `json`)
+- **PHP**: `^8.3` (Required extensions: `pdo`, `sqlite3` or `pdo_mysql`, `mbstring`, `openssl`, `tokenizer`, `xml`, `ctype`, `json`)
 - **Composer**: `^2.x`
 - **Node.js**: `^18.x` or `^20.x` & **npm** `^9.x`
 - **Database**: SQLite (default), MySQL `^8.0`, or PostgreSQL `^15`
 
 ---
 
-## 🚀 Installation
+## 🚀 Installation & Setup
 
 ### Option 1: Automated Setup (Recommended)
 
-Run the single composer command to install dependencies, copy environment files, generate application keys, run migrations with seeders, and build assets:
+Run the single composer command to install dependencies, copy environment files, generate application keys, run migrations with seeders, and build frontend assets:
 
 ```bash
 composer setup
@@ -229,10 +230,10 @@ php artisan queue:monitor --retry-failed
 
 After seeding the database (`php artisan db:seed`), use these demo accounts to log in:
 
-| Role | Email | Password | Permissions |
+| Role | Email | Password | Access Level & Permissions |
 |---|---|---|---|
-| **Super Admin** | `admin@hrm.com` | `password` | Full system access, audit logs, configuration |
-| **Employee** | `user@hrm.com` | `password` | Employee self-service dashboard |
+| **Super Admin** | `admin@hrm.com` | `password` | Full system access, administrative capabilities, audit logs |
+| **Employee** | `user@hrm.com` | `password` | Employee self-service dashboard, leave & attendance tracking |
 
 ---
 
@@ -318,26 +319,9 @@ Tests run against an isolated in-memory SQLite database (`phpunit.xml`) covering
 
 ---
 
-## 🤝 Contributing
+## 👤 Project Maintainer
 
-Contributions are welcome! Please follow these guidelines when submitting pull requests:
-
-1. **Fork the Repository** and create a feature branch (`git checkout -b feature/amazing-feature`).
-2. **Adhere to Code Standards**: Format PHP code using Laravel Pint (`vendor/bin/pint`).
-3. **Write Tests**: Ensure new features or bug fixes include corresponding unit/feature tests.
-4. **Commit Changes**: Use clean, descriptive commit messages (`git commit -m 'Add amazing feature'`).
-5. **Push & Open PR**: Push to your branch and submit a Pull Request targeting `main`.
-
----
-
-## 📄 License
-
-Distributed under the **MIT License**. See [`LICENSE`](LICENSE).
-
----
-
-## 📬 Contact & Support
-
-- **Author**: [Shraban-7](https://github.com/Shraban-7)
+- **Developer**: [Shraban-7](https://github.com/Shraban-7)
 - **Repository**: [https://github.com/Shraban-7/HRM](https://github.com/Shraban-7/HRM)
-- **Documentation**: See [docs/architecture.md](docs/architecture.md) and [docs/deployment.md](docs/deployment.md) for architectural and deployment details.
+- **Architecture Documentation**: See [docs/architecture.md](docs/architecture.md)
+- **Deployment Guide**: See [docs/deployment.md](docs/deployment.md)
