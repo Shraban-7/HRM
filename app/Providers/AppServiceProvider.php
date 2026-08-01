@@ -66,6 +66,19 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->registerPolicies();
         $this->registerGateBypass();
+        $this->configureQueryOptimization();
+    }
+
+    /**
+     * Prevent lazy loading of relationships in non-production environments
+     * to surface N+1 query issues during development and testing.
+     */
+    protected function configureQueryOptimization(): void
+    {
+        $enabled = ! app()->isProduction();
+
+        \Illuminate\Database\Eloquent\Model::preventLazyLoading($enabled);
+        \Illuminate\Database\Eloquent\Model::preventSilentlyDiscardingAttributes($enabled);
     }
 
     protected function registerPolicies(): void

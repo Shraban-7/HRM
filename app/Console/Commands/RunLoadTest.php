@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Jobs\GenerateReport;
 use App\Models\Attendance;
 use App\Models\Department;
 use App\Models\Employee;
@@ -31,10 +32,17 @@ class RunLoadTest extends Command
         $results['Attendance list with eager loading'] = $this->benchmark(fn () => Attendance::with('employee.user')->orderBy('date', 'desc')->paginate(20), $iterations);
         $results['Leave list with eager loading'] = $this->benchmark(fn () => LeaveRequest::with(['employee.user', 'approver'])->orderBy('created_at', 'desc')->paginate(15), $iterations);
         $results['Payroll list with nested payslips'] = $this->benchmark(fn () => Payroll::with('payslips.employee.user')->orderBy('id', 'desc')->paginate(15), $iterations);
-        $results['Report generation (employee-list)'] = $this->benchmark(fn () => app(\App\Jobs\GenerateReport::class), $iterations);
+        $results['Report generation (employee-list)'] = $this->benchmark(function () {
+            (new GenerateReport('employee-list', [], 1))->handle();
+        }, $iterations);
         $results['Payroll calculation'] = $this->benchmarkPayroll($payrollCalculator, $iterations);
 
-        $this->table(['Operation', 'Avg time (ms)', 'Avg queries'], $results);
+        $rows = [];
+        foreach ($results as $operation => [$time, $queries]) {
+            $rows[] = [$operation, $time, $queries];
+        }
+
+        $this->table(['Operation', 'Avg time (ms)', 'Avg queries'], $rows);
 
         return self::SUCCESS;
     }

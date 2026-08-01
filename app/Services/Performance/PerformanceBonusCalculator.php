@@ -25,10 +25,12 @@ class PerformanceBonusCalculator
 
     /**
      * Calculate performance bonus for an employee based on their latest review.
+     *
+     * @param  int|null  $rating  Optional pre-computed rating to avoid an extra query.
      */
-    public function calculateBonusForEmployee(Employee $employee): float
+    public function calculateBonusForEmployee(Employee $employee, ?int $rating = null): float
     {
-        $rating = $this->getLatestRating($employee);
+        $rating ??= $this->getLatestRating($employee);
 
         if ($rating === null) {
             return 0.0;
@@ -44,9 +46,19 @@ class PerformanceBonusCalculator
     {
         $results = [];
 
-        foreach (Employee::where('status', 'active')->get() as $employee) {
-            $rating = $this->getLatestRating($employee);
-            $bonus = $this->calculateBonusForEmployee($employee);
+        // Eager load user so no lazy-loading is triggered per employee.
+        $employees = Employee::with('user')->where('status', 'active')->get();
+
+        // Pre-fetch the latest rated review for every active employee in one query.
+        $latestRatings = PerformanceReview::whereIn('employee_id', $employees->pluck('id'))
+            ->whereNotNull('rating')
+            ->orderBy('review_date', 'desc')
+            ->get()
+            ->unique('employee_id');
+
+        foreach ($employees as $employee) {
+            $rating = $latestRatings->firstWhere('employee_id', $employee->id)?->rating;
+            $bonus = $this->calculateBonusForEmployee($employee, $rating);
 
             if ($rating !== null) {
                 $results[] = [
