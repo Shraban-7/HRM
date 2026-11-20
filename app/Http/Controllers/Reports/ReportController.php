@@ -4,7 +4,11 @@ namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\GenerateReport;
+use App\Models\Payroll;
+use App\Services\Export\ExportService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
 {
@@ -20,7 +24,12 @@ class ReportController extends Controller
 
     public function index()
     {
-        return view('report.index', ['reportTypes' => self::REPORT_TYPES]);
+        $payrolls = Payroll::latest()->take(10)->get();
+
+        return view('report.index', [
+            'reportTypes' => self::REPORT_TYPES,
+            'payrolls' => $payrolls,
+        ]);
     }
 
     public function generate(Request $request)
@@ -49,6 +58,40 @@ class ReportController extends Controller
         GenerateReport::dispatch($request->input('type'), $params, $user->id);
 
         return redirect()->route('reports.index')
-            ->with('success', 'Report generation started. The output will be saved under the reports directory.');
+            ->with('success', 'Report generation queued in background.');
+    }
+
+    public function exportEmployees(ExportService $exportService): StreamedResponse
+    {
+        return $exportService->exportEmployeesCsv();
+    }
+
+    public function exportPayroll(Request $request, ExportService $exportService): StreamedResponse
+    {
+        $payrollId = (int) $request->input('payroll_id', Payroll::latest()->value('id') ?? 1);
+
+        return $exportService->exportPayrollCsv($payrollId);
+    }
+
+    public function exportAttendance(Request $request, ExportService $exportService): StreamedResponse
+    {
+        return $exportService->exportAttendanceCsv($request->input('month'));
+    }
+
+    public function importEmployees(Request $request, ExportService $exportService): RedirectResponse
+    {
+        $request->validate([
+            'csv_file' => 'required|file|mimes:csv,txt|max:5120',
+        ]);
+
+        $result = $exportService->importEmployeesCsv($request->file('csv_file'));
+
+        if (! empty($result['errors'])) {
+            return redirect()->route('reports.index')
+                ->with('error', "Import completed with {$result['imported']} records added. Some records failed: ".implode('; ', array_slice($result['errors'], 0, 3)));
+        }
+
+        return redirect()->route('reports.index')
+            ->with('success', "Successfully imported {$result['imported']} employees via CSV batch.");
     }
 }

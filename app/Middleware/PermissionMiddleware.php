@@ -10,16 +10,27 @@ class PermissionMiddleware
 {
     public function handle(Request $request, Closure $next, string $permissionSlug)
     {
-        $permissions = Session::get('user_permissions', []);
+        $permissions = Session::get('user_permissions');
 
-        if (!in_array($permissionSlug, $permissions)) {
-            if ($request->expectsJson()) {
-                return response()->json(['message' => 'Forbidden: insufficient permission.'], 403);
+        if ($permissions === null && $request->user()) {
+            $user = $request->user();
+            if ($user->hasRole('super_admin') || $user->hasPermission($permissionSlug)) {
+                return $next($request);
             }
-            return redirect()->route('dashboard')
-                ->with('error', 'You do not have the required permission.');
+        } elseif (is_array($permissions)) {
+            if (in_array($permissionSlug, $permissions)) {
+                return $next($request);
+            }
+            if ($request->user() && $request->user()->hasRole('super_admin')) {
+                return $next($request);
+            }
         }
 
-        return $next($request);
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Forbidden: insufficient permission.'], 403);
+        }
+
+        return redirect()->route('dashboard')
+            ->with('error', 'You do not have the required permission.');
     }
 }

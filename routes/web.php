@@ -36,12 +36,15 @@ use App\Models\AuditLog;
 use App\Services\Auth\CustomAuthService;
 use Illuminate\Support\Facades\Route;
 
-// Root redirect.
+// Root marketing landing page (or dashboard for authenticated users).
 Route::get('/', function (CustomAuthService $authService) {
     return $authService->isAuthenticated()
         ? redirect()->route('dashboard')
-        : redirect()->route('auth.login');
-});
+        : view('marketing.landing');
+})->name('landing');
+
+// Demo role switcher for commercial sales demonstrations
+Route::post('/demo/switch/{role}', [\App\Http\Controllers\DemoController::class, 'switchRole'])->name('demo.switch');
 
 // Public Auth Routes
 Route::name('auth.')->group(function () {
@@ -161,6 +164,67 @@ Route::middleware(['custom.auth'])->group(function () {
     Route::prefix('reports')->name('reports.')->middleware('permission:audit.view')->group(function () {
         Route::get('/', [ReportController::class, 'index'])->name('index');
         Route::post('/', [ReportController::class, 'generate'])->name('generate');
+        Route::get('/export/employees', [ReportController::class, 'exportEmployees'])->name('export.employees');
+        Route::get('/export/payroll', [ReportController::class, 'exportPayroll'])->name('export.payroll');
+        Route::get('/export/attendance', [ReportController::class, 'exportAttendance'])->name('export.attendance');
+        Route::post('/import/employees', [ReportController::class, 'importEmployees'])->name('import.employees');
+    });
+
+    // Employee Onboarding & Exit Offboarding
+    Route::prefix('onboarding')->name('onboarding.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Employee\OnboardingController::class, 'index'])->name('index');
+        Route::post('/checklists', [\App\Http\Controllers\Employee\OnboardingController::class, 'storeChecklist'])->name('checklists.store');
+        Route::post('/checklists/{checklist}/tasks', [\App\Http\Controllers\Employee\OnboardingController::class, 'storeTask'])->name('tasks.store');
+        Route::post('/progress/{progress}/toggle', [\App\Http\Controllers\Employee\OnboardingController::class, 'toggleTask'])->name('progress.toggle');
+    });
+    Route::prefix('exit')->name('exit.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Employee\ExitController::class, 'index'])->name('index');
+        Route::post('/', [\App\Http\Controllers\Employee\ExitController::class, 'store'])->name('store');
+        Route::post('/clearances/{clearance}/clear', [\App\Http\Controllers\Employee\ExitController::class, 'clearDepartment'])->name('clearances.clear');
+    });
+
+    // Company Assets Inventory
+    Route::prefix('assets')->name('assets.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Asset\AssetController::class, 'index'])->name('index');
+        Route::post('/', [\App\Http\Controllers\Asset\AssetController::class, 'store'])->name('store');
+        Route::post('/categories', [\App\Http\Controllers\Asset\AssetController::class, 'storeCategory'])->name('categories.store');
+        Route::post('/{asset}/assign', [\App\Http\Controllers\Asset\AssetController::class, 'assign'])->name('assign');
+        Route::post('/{asset}/return', [\App\Http\Controllers\Asset\AssetController::class, 'returnAsset'])->name('return');
+    });
+
+    // Digital Documents & Policies
+    Route::prefix('documents')->name('documents.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Document\DocumentController::class, 'index'])->name('index');
+        Route::post('/', [\App\Http\Controllers\Document\DocumentController::class, 'store'])->name('store');
+        Route::post('/categories', [\App\Http\Controllers\Document\DocumentController::class, 'storeCategory'])->name('categories.store');
+        Route::get('/{document}/download', [\App\Http\Controllers\Document\DocumentController::class, 'download'])->name('download');
+        Route::post('/policies', [\App\Http\Controllers\Document\DocumentController::class, 'storePolicy'])->name('policies.store');
+        Route::post('/policies/{policy}/acknowledge', [\App\Http\Controllers\Document\DocumentController::class, 'acknowledgePolicy'])->name('policies.acknowledge');
+    });
+
+    // Expense Claims & Reimbursements
+    Route::prefix('expenses')->name('expenses.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Expense\ExpenseController::class, 'index'])->name('index');
+        Route::post('/', [\App\Http\Controllers\Expense\ExpenseController::class, 'store'])->name('store');
+        Route::post('/categories', [\App\Http\Controllers\Expense\ExpenseController::class, 'storeCategory'])->name('categories.store');
+        Route::post('/{expense}/approve', [\App\Http\Controllers\Expense\ExpenseController::class, 'approve'])->name('approve');
+        Route::post('/{expense}/reject', [\App\Http\Controllers\Expense\ExpenseController::class, 'reject'])->name('reject');
+    });
+
+    // Employee Loans & Advances
+    Route::prefix('loans')->name('loans.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Loan\LoanController::class, 'index'])->name('index');
+        Route::post('/', [\App\Http\Controllers\Loan\LoanController::class, 'store'])->name('store');
+        Route::post('/{loan}/approve', [\App\Http\Controllers\Loan\LoanController::class, 'approve'])->name('approve');
+        Route::post('/{loan}/repay', [\App\Http\Controllers\Loan\LoanController::class, 'recordPayment'])->name('repay');
+    });
+
+    // Internal Help Desk
+    Route::prefix('helpdesk')->name('helpdesk.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\HelpDesk\TicketController::class, 'index'])->name('index');
+        Route::post('/', [\App\Http\Controllers\HelpDesk\TicketController::class, 'store'])->name('store');
+        Route::get('/{ticket}', [\App\Http\Controllers\HelpDesk\TicketController::class, 'show'])->name('show');
+        Route::post('/{ticket}/comments', [\App\Http\Controllers\HelpDesk\TicketController::class, 'storeComment'])->name('comments.store');
     });
 
     // Audit Logs
@@ -169,4 +233,15 @@ Route::middleware(['custom.auth'])->group(function () {
 
         return view('layouts.audit', compact('logs'));
     })->name('audit.index')->middleware('permission:audit.view');
+
+    // System Settings & White-labeling
+    Route::prefix('settings')->name('settings.')->middleware('permission:audit.view')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Settings\CompanySettingController::class, 'index'])->name('index');
+        Route::put('/', [\App\Http\Controllers\Settings\CompanySettingController::class, 'update'])->name('update');
+        Route::post('/holidays', [\App\Http\Controllers\Settings\CompanySettingController::class, 'storeHoliday'])->name('holidays.store');
+        Route::delete('/holidays/{holiday}', [\App\Http\Controllers\Settings\CompanySettingController::class, 'destroyHoliday'])->name('holidays.destroy');
+        Route::get('/roles', [\App\Http\Controllers\Settings\RolePermissionController::class, 'index'])->name('roles.index');
+        Route::post('/roles', [\App\Http\Controllers\Settings\RolePermissionController::class, 'storeRole'])->name('roles.store');
+        Route::put('/roles/{role}', [\App\Http\Controllers\Settings\RolePermissionController::class, 'updateRole'])->name('roles.update');
+    });
 });

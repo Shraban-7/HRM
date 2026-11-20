@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
             PermissionSeeder::class,
             DepartmentSeeder::class,
             AdminUserSeeder::class,
+            DemoCompanySeeder::class,
         ]);
     }
 }

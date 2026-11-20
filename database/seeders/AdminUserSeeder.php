@@ -11,7 +11,8 @@ class AdminUserSeeder extends Seeder
 {
     public function run(): void
     {
-        $admin = User::firstOrCreate(
+        // Create / Update Super Admin
+        $admin = User::updateOrCreate(
             ['email' => 'admin@hrm.com'],
             [
                 'username' => 'admin',
@@ -25,8 +26,38 @@ class AdminUserSeeder extends Seeder
             $admin->roles()->attach($superAdminRole->id);
         }
 
-        // Create regular user for testing
-        $user = User::firstOrCreate(
+        // Create / Update HR Admin
+        $hrAdmin = User::updateOrCreate(
+            ['email' => 'hrmanager@hrm.com'],
+            [
+                'username' => 'hrmanager',
+                'password' => Hash::make('password'),
+                'status' => 'active',
+            ]
+        );
+
+        $hrAdminRole = Role::where('slug', 'hr_admin')->first();
+        if ($hrAdminRole && ! $hrAdmin->roles()->where('role_id', $hrAdminRole->id)->exists()) {
+            $hrAdmin->roles()->attach($hrAdminRole->id);
+        }
+
+        // Create / Update Manager
+        $manager = User::updateOrCreate(
+            ['email' => 'manager@hrm.com'],
+            [
+                'username' => 'manager',
+                'password' => Hash::make('password'),
+                'status' => 'active',
+            ]
+        );
+
+        $managerRole = Role::where('slug', 'manager')->first();
+        if ($managerRole && ! $manager->roles()->where('role_id', $managerRole->id)->exists()) {
+            $manager->roles()->attach($managerRole->id);
+        }
+
+        // Create / Update regular employee user
+        $user = User::updateOrCreate(
             ['email' => 'user@hrm.com'],
             [
                 'username' => 'employee1',

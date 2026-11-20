@@ -31,6 +31,16 @@ class Employee extends Model
         return trim(($this->first_name ?? '').' '.($this->last_name ?? '')) ?: ($this->user?->username ?? 'N/A');
     }
 
+    public function getEmployeeCodeAttribute(): ?string
+    {
+        return $this->employee_id;
+    }
+
+    public function getJoiningDateAttribute(): ?string
+    {
+        return $this->hire_date?->format('Y-m-d');
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -89,5 +99,10 @@ class Employee extends Model
     public function benefitEnrollments(): HasMany
     {
         return $this->hasMany(BenefitEnrollment::class);
+    }
+
+    public function onboardingProgress(): HasMany
+    {
+        return $this->hasMany(EmployeeOnboardingProgress::class);
     }
 }

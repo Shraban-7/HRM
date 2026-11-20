@@ -4,7 +4,9 @@ namespace App\Services\Auth;
 
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Session;
 
 class CustomAuthService
@@ -23,7 +25,7 @@ class CustomAuthService
             return null;
         }
 
-        if (! Hash::check($password, $user->password)) {
+        if (! $this->validateCredentials($user, $password)) {
             $this->incrementLoginAttempts($user);
 
             return null;
@@ -47,7 +49,36 @@ class CustomAuthService
 
     public function validateCredentials(User $user, string $password): bool
     {
-        return Hash::check($password, $user->password);
+        // 1. Primary verification using Laravel Hash facade
+        try {
+            if (Hash::check($password, $user->password)) {
+                return true;
+            }
+        } catch (\RuntimeException $e) {
+            // Non-bcrypt legacy hash encountered, fall through to legacy handler
+        }
+
+        // 2. Legacy fallback: check salted SHA-256
+        $salt = $user->getAttribute('salt');
+        if (! empty($salt) && hash('sha256', $salt . $password) === $user->password) {
+            $user->password = Hash::make($password);
+            if (Schema::hasColumn('users', 'salt')) {
+                DB::table('users')->where('id', $user->id)->update(['salt' => null]);
+            }
+            $user->save();
+
+            return true;
+        }
+
+        // 3. Legacy fallback: check unsalted SHA-256
+        if (hash('sha256', $password) === $user->password) {
+            $user->password = Hash::make($password);
+            $user->save();
+
+            return true;
+        }
+
+        return false;
     }
 
     public function lockAccountIfNeeded(User $user): void
