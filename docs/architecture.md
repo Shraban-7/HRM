@@ -1,230 +1,61 @@
-# HRM Application Architecture
+# Application Architecture
 
 ## Overview
 
-The HRM (Human Resource Management) application is a modular Laravel monolith that combines classic MVC structure with a Service Layer and Repository Pattern. This document describes the core architectural decisions, design patterns, and conventions used across the codebase.
+This project is a Laravel 13 modular monolith on PHP 8.3+. It uses Laravel's web stack with Blade views, Tailwind CSS 4, jQuery, Vite, Eloquent, and dompdf. Domain code is grouped by HRM area while sharing one application, database, and deployment unit.
 
----
+## Request and domain flow
 
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Backend | Laravel 13.x (PHP 8.3+) |
-| Frontend | Blade + Tailwind CSS v4 + jQuery 3.7.x |
-| Build Tool | Vite 8 |
-| Database | MySQL 8 / PostgreSQL 15 / SQLite (testing) |
-| Cache | Database driver by default; Redis supported (`CACHE_STORE=redis`) |
-| Queue | Database driver by default; Redis supported (`QUEUE_CONNECTION=redis`) |
-| PDF Generation | dompdf/dompdf ^3.1 |
-
----
-
-## Directory Structure
-
-```
-app/
-├── Console/Commands/       # Artisan commands (load test, queue monitor)
-├── Events/                 # Domain events (EmployeeHired, PayrollProcessed, ...)
-├── Helpers/                # Standalone helper functions (HashHelper, EncryptionHelper)
-├── Http/
-│   ├── Controllers/        # Thin orchestration layer (validation + delegation)
-│   ├── Middleware/         # CustomAuth, Role, Permission, AuditLog, SecurityHeaders
-│   └── Requests/           # Form Request validation classes
-├── Jobs/                   # Queue jobs (ProcessPayroll, GeneratePayslips, ...)
-├── Listeners/              # Event listeners (SendWelcomeEmail, LogAuditEvent, ...)
-├── Models/                 # Eloquent models (User, Employee, Payroll, ...)
-├── Policies/               # Authorization policies (EmployeePolicy, PayrollPolicy, ...)
-├── Providers/              # AppServiceProvider, EventServiceProvider, RepositoryServiceProvider
-├── Repositories/
-│   ├── Cache/              # Cache decorators wrapping Eloquent repositories
-│   ├── Contracts/          # Repository interfaces
-│   └── Eloquent/           # Eloquent-based implementations
-└── Services/               # Domain business logic
-    ├── Attendance/         # AttendanceProcessor, LeaveCalculator
-    ├── Auth/               # CustomAuthService, PasswordService, TokenService
-    ├── Benefits/           # BenefitCostCalculator, CobraService, Providers
-    ├── Employee/           # EmployeeService, OrgChartService
-    ├── Notification/       # EmailNotificationService, InAppNotificationService
-    ├── Payroll/            # PayrollCalculator, TaxEngine, PayslipGenerator
-    └── Performance/        # PerformanceBonusCalculator
+```text
+Browser → routes/web.php → middleware → controller → request validation
+                                               ↓
+                                  service / repository / model
+                                               ↓
+                                       database and views
+                                               ↓
+                           event, listener, notification, or job
 ```
 
----
+Controllers coordinate HTTP concerns. Form Requests validate supported inputs. Services implement domain rules and calculations. Eloquent models represent persisted records and relationships. The repository pattern is used for selected persistence concerns; it is not a mandatory layer for every model or controller.
 
-## Layered Architecture
+## Code map
 
-The application follows a strict layered architecture with one-directional dependencies:
+| Path | Responsibility |
+|---|---|
+| `routes/web.php` | Web endpoints, route names, and middleware assignments. |
+| `app/Http/Controllers/` | HTTP orchestration and response selection, grouped by feature. |
+| `app/Http/Requests/` | Dedicated request validation where present. |
+| `app/Services/` | Authentication, employee, payroll, attendance, benefits, and other domain logic. |
+| `app/Repositories/Contracts/` | Interfaces for selected repository operations. |
+| `app/Repositories/Eloquent/` | Eloquent-backed repository implementations. |
+| `app/Repositories/Cache/` | Cached decorators for employee and payroll repositories. |
+| `app/Models/` | Eloquent models and relationships. |
+| `app/Policies/`, `app/Middleware/` | Authorization and cross-cutting request controls. |
+| `app/Events/`, `app/Listeners/`, `app/Jobs/` | Domain events, side effects, and background-capable work. |
+| `app/Notifications/` | Laravel notifications. |
+| `database/migrations/`, `database/seeders/` | Schema evolution and initial/demo data. |
+| `resources/views/`, `resources/js/`, `resources/css/` | Server-rendered UI and frontend assets. |
 
-```
-┌─────────────────────────────────────────────────┐
-│                   Routes (web.php)              │
-├─────────────────────────────────────────────────┤
-│                Controllers (thin)               │
-│         Validation + Orchestration only         │
-├─────────────────────────────────────────────────┤
-│                  Services (fat)                 │
-│           Business logic & domain rules         │
-├─────────────┬───────────────┬───────────────────┤
-│ Repositories│  Events/Jobs  │  Policies/Gates   │
-│  (data)     │  (side effects)│  (authorization)  │
-├─────────────┴───────────────┴───────────────────┤
-│                Eloquent Models                  │
-├─────────────────────────────────────────────────┤
-│                 Database (MySQL)                │
-└─────────────────────────────────────────────────┘
-```
+## Persistence and repositories
 
-### Dependency Rules
+Repository contracts currently cover employee, payroll, and attendance operations. `RepositoryServiceProvider` binds employee and payroll interfaces to cache decorators when the configured cache store is `redis` or `database`; other stores use the Eloquent repository directly. Attendance uses its Eloquent repository without a cache decorator because it represents time-sensitive records.
 
-- **Controllers** depend on Services, never directly on Eloquent query logic for business operations.
-- **Services** contain domain rules and may use Repositories for persistence.
-- **Repositories** abstract data access behind interfaces; Cache decorators wrap them transparently.
-- **Events/Listeners** handle side effects (emails, audit logs, org chart cache invalidation).
-- **Jobs** offload heavy/expensive operations (payroll processing, PDF generation, bulk email) to the queue.
+The cache decorators use versioned cache namespaces to invalidate groups of cached reads after writes. When changing repository behavior, preserve invalidation semantics and consider consistency across multiple application instances. Laravel's database and cache configuration remains the source of truth for connections and stores.
 
----
+## Services, events, and jobs
 
-## Repository Pattern
+Services contain calculations and lifecycle rules such as payroll/tax computation, attendance and leave handling, benefit costs, employee lifecycle operations, and org chart construction. Keep financial calculations isolated and deterministic where practical; persist related changes transactionally.
 
-All data access for core entities is abstracted behind interfaces located in `app/Repositories/Contracts/`.
+`EventServiceProvider` explicitly maps events to listeners and disables event auto-discovery. Current mappings include employee hire/termination, salary change, payroll completion, leave approval, performance review submission, and benefit enrollment changes. Review the event provider and listener implementations before assuming a side effect runs asynchronously: a listener only runs in the queue when it is configured to queue.
 
-### Interfaces
+Jobs include payroll processing, payslip generation, report generation, and email delivery. The default queue connection in `.env.example` is `database`; a worker must be supervised in deployments that rely on queued work. A scheduled hourly retry of failed jobs is registered in `bootstrap/app.php`; assess idempotency and failure handling before changing retry behavior.
 
-| Interface | Implementation | Cache Decorator |
-|-----------|---------------|-----------------|
-| `EmployeeRepositoryInterface` | `Eloquent\EmployeeRepository` | `Cache\CachedEmployeeRepository` |
-| `PayrollRepositoryInterface` | `Eloquent\PayrollRepository` | `Cache\CachedPayrollRepository` |
-| `AttendanceRepositoryInterface` | `Eloquent\AttendanceRepository` | — (real-time data, no cache) |
+## Authentication and authorization
 
-### Binding Strategy
+The route file applies the `custom.auth` middleware to protected application routes. Public routes include authentication pages and careers endpoints. Role and permission middleware are registered in `bootstrap/app.php`; selected endpoints also use Laravel policies. Authorization coverage is route-specific, so review each endpoint and its controller/policy before exposing or changing an action. Never treat a hidden button as an access control.
 
-`RepositoryServiceProvider` binds interfaces to implementations at runtime:
+## Configuration and testing
 
-- If `CACHE_STORE` is `redis` or `database`, the cache decorator wraps the Eloquent implementation.
-- Otherwise, the plain Eloquent implementation is used.
+Application configuration lives in `config/`; environment-specific values come from `.env`. `.env.example` uses SQLite and database-backed session, cache, and queue defaults. PHPUnit overrides these with an in-memory SQLite database, array cache/session, and synchronous queue in `phpunit.xml`.
 
-The cache decorators use a **version-namespace invalidation strategy**: all employee cache keys are prefixed with a namespace version (`employees:v{n}:...`), and mutating operations (create/update/delete) increment the version counter, instantly invalidating all stale entries without needing to enumerate keys.
-
----
-
-## Service Layer
-
-Business logic lives in services under `app/Services/`. Services are registered as singletons in `AppServiceProvider::register()`.
-
-### Key Services
-
-| Service | Responsibilities |
-|---------|-----------------|
-| `EmployeeService` | Employee lifecycle: create (user + employee), update, terminate; fires `EmployeeHired`, `SalaryChanged`, `EmployeeTerminated` events |
-| `PayrollCalculator` | Payroll run orchestration: iterates employees, computes gross/deductions/net via `TaxEngine`, creates payslips; fires `PayrollProcessed` |
-| `TaxEngine` | Progressive tax bracket calculation using `config/hrm.php` brackets |
-| `PayslipGenerator` | PDF payslip generation (dompdf) and batch generation |
-| `AttendanceProcessor` | Clock-in/out, overtime calculation, period queries |
-| `LeaveCalculator` | Working-day calculation, leave balances, accrual caps, eligibility |
-| `EmailNotificationService` | Email dispatch for welcome, password reset, leave status, payroll notifications |
-| `InAppNotificationService` | In-app notification persistence (native Laravel notifications) |
-| `BenefitCostCalculator` | Benefits cost aggregation and deduction calculation |
-| `CobraService` | COBRA coverage lifecycle management |
-| `OrgChartService` | Department hierarchy tree building |
-
----
-
-## Event Architecture
-
-Events are dispatched by services after state changes and handled asynchronously by queued listeners where appropriate.
-
-### Event Listener Mapping (`EventServiceProvider`)
-
-| Event | Listeners |
-|-------|-----------|
-| `EmployeeHired` | `SendWelcomeEmail`, `UpdateOrgChart`, `LogAuditEvent` |
-| `EmployeeTerminated` | `LogAuditEvent`, `UpdateOrgChart` |
-| `SalaryChanged` | `LogAuditEvent` |
-| `PayrollProcessed` | `NotifyPayrollTeam`, `LogAuditEvent` |
-| `LeaveApproved` | `LogAuditEvent` |
-| `PerformanceReviewSubmitted` | `LogAuditEvent` |
-| `BenefitEnrollmentChanged` | `LogAuditEvent`, `OfferCobraCoverage` |
-
-### Listener Pattern
-
-- **LogAuditEvent** writes a structured audit trail for every domain event.
-- **UpdateOrgChart** invalidates/rebuilds the org chart cache when employee structure changes.
-- **SendWelcomeEmail** sends onboarding email via the queued mail system.
-- **NotifyPayrollTeam** notifies payroll admins when a payroll run completes.
-
----
-
-## Queue Architecture
-
-Heavy operations are dispatched to the queue for asynchronous execution:
-
-| Job | Purpose | Retries / Backoff |
-|-----|---------|-------------------|
-| `ProcessPayroll` | Full payroll run with payslip creation | 3 tries; [60s, 300s] |
-| `GeneratePayslips` | Batch PDF payslip compilation | 3 tries; [60s, 300s] |
-| `SendNotificationEmails` | Bulk email dispatch | 3 tries |
-| `GenerateReport` | Background report generation | 3 tries |
-
-The application uses the database queue driver by default (`QUEUE_CONNECTION=database`). A scheduled command in `bootstrap/app.php` retries failed jobs hourly:
-
-```php
-$schedule->command('queue:retry --failed')->hourly();
-```
-
-A `queue:monitor` Artisan command reports queue health (pending, failed, scheduled, active sessions) and can retry failed jobs:
-
-```bash
-php artisan queue:monitor
-php artisan queue:monitor --retry-failed
-```
-
----
-
-## Caching Strategy
-
-- **Repository Cache**: `CachedEmployeeRepository` and `CachedPayrollRepository` wrap read operations with `Cache::remember` using version-namespace invalidation.
-- **Default TTL**: 3600 seconds (1 hour); search queries use a 30-minute TTL.
-- **Cache Invalidation**: Bumping the namespace version on any write operation.
-- **Production**: Configure `CACHE_STORE=redis` for distributed, fast cache.
-
----
-
-## Authorization
-
-Authorization uses a hybrid approach:
-
-1. **Role & Permission Middleware**: `RoleMiddleware` and `PermissionMiddleware` check session-cached role/permission arrays on routes.
-2. **Laravel Policies**: `EmployeePolicy`, `LeavePolicy`, `PayrollPolicy`, `DepartmentPolicy` registered via `Gate::policy()`.
-3. **Super Admin Bypass**: A `Gate::before` hook grants all abilities to `super_admin` role users.
-
----
-
-## Query Optimization
-
-- **Eager Loading**: All index controllers explicitly `with()` relationships (`Employee::with(['user', 'department'])`, `LeaveRequest::with(['employee.user', 'approver'])`, etc.) to eliminate N+1 queries.
-- **Lazy Loading Prevention**: `Model::preventLazyLoading()` is enabled outside production, so any accidental lazy load throws an exception during development/testing.
-- **Silent Discard Prevention**: `preventSilentlyDiscardingAttributes()` is enabled outside production to catch mass-assignment mistakes.
-- **Load Testing**: `php artisan app:load-test` benchmarks dashboard aggregations, list queries, reports, and payroll calculations.
-
----
-
-## Testing Strategy
-
-- **Feature Tests** (`tests/Feature`): HTTP-level tests for auth, employees, payroll, attendance, leave, recruitment, performance, benefits, notifications, reports, shifts, COBRA, and security. 134 tests / 260 assertions.
-- **Unit Tests** (`tests/Unit`): Service layer tests for `TaxEngine`, `PayrollCalculator`, `AttendanceProcessor`, `LeaveCalculator`, `EmployeeService`, `CustomAuthService`, `TokenService`, `OrgChartService`, benefit services, and repository tests.
-- **Configuration**: SQLite in-memory via `phpunit.xml`; `RefreshDatabase` trait for migrations.
-
-Run the suite:
-
-```bash
-php artisan test
-```
-
----
-
-## Related Documents
-
-- [Deployment Guide](deployment.md)
-- [Root README](../README.md)
-- [Task Backlog](../tasks/README.md)
+The suite is divided into `tests/Feature/` and `tests/Unit/`. See [testing.md](testing.md) for focused commands and guidance. See [development.md](development.md) for setup, and [deployment.md](deployment.md) for production operations.

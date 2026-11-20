@@ -1,353 +1,177 @@
 # Production Deployment Guide
 
-This guide covers deploying the HRM application to production using Nginx + PHP-FPM, Redis, Queue Workers, and MySQL.
+This guide describes a conventional Linux deployment with Nginx, PHP-FPM, MySQL, and a supervised Laravel queue worker. Redis is optional; the application defaults in `.env.example` use database-backed sessions, cache, and queue. Adapt service names and paths to the target host.
 
----
+## Requirements
 
-## Prerequisites
+- PHP 8.3+ with the extensions required by Laravel and installed packages, including PDO for the chosen database, `mbstring`, `openssl`, `tokenizer`, XML support, and `ctype`/`json`.
+- Composer 2 and Node.js/npm versions compatible with the lockfiles and Vite configuration.
+- MySQL 8+ (or another database supported by Laravel and this project's migrations), Nginx, and PHP-FPM.
+- A persistent queue worker and Laravel scheduler if the deployed configuration uses queues or scheduled tasks.
 
-| Requirement | Version |
-|-------------|---------|
-| PHP | 8.3+ (with extensions: `pdo_mysql`, `mbstring`, `xml`, `curl`, `gd` or `imagick`, `zip`, `bcmath`, `openssl`, `tokenizer`) |
-| Composer | 2.x |
-| Node.js | 20+ (for asset compilation) |
-| MySQL | 8.0+ |
-| Redis | 7.x |
-| Nginx | 1.24+ |
+Use `composer.json`, `package.json`, and the lockfiles as authoritative dependency references. Build assets in CI or on the deployment host with development dependencies available to Vite.
 
----
+## Prepare the host and database
 
-## 1. Server Preparation
+Create a dedicated database and least-privilege database account using your organization's secret-management process. Restrict database network access to application hosts. Set up TLS, DNS, firewall rules, monitoring, and backups before directing production traffic.
 
-### Install PHP & Extensions (Ubuntu/Debian)
+Create an application release directory and install the source. Keep `.env` and persistent user uploads outside version control. The web server document root must be the app's `public/` directory, never the repository root.
 
-```bash
-sudo apt update
-sudo apt install -y php8.3-fpm php8.3-cli php8.3-mysql php8.3-mbstring \
-    php8.3-xml php8.3-curl php8.3-zip php8.3-bcmath php8.3-gd \
-    php8.3-redis composer nginx mysql-server redis-server
-```
+## Configure the application
 
-### Install Composer
-
-```bash
-curl -sS https://getcomposer.org/installer | php
-sudo mv composer.phar /usr/local/bin/composer
-```
-
----
-
-## 2. Application Deployment
-
-### Clone & Install
-
-```bash
-cd /var/www
-git clone https://github.com/your-org/hrm-app.git
-cd hrm-app
-```
-
-### Install Dependencies
-
-```bash
-composer install --no-dev --optimize-autoloader
-npm ci --production
-npm run build
-```
-
-### Configure Environment
-
-```bash
-cp .env.example .env
-php artisan key:generate
-```
-
-Edit `.env` with production values:
+Create `.env` from `.env.example`, then set at least:
 
 ```dotenv
+APP_NAME="HRM"
 APP_ENV=production
 APP_DEBUG=false
-APP_URL=https://hrm.yourdomain.com
+APP_URL=https://hrm.example.com
+
+APP_KEY=base64:REPLACE_WITH_GENERATED_KEY
 
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_DATABASE=hrm_app
-DB_USERNAME=hrm_user
-DB_PASSWORD=strong_password
+DB_USERNAME=hrm_app
+DB_PASSWORD=SET_VIA_SECRET_MANAGEMENT
 
-CACHE_STORE=redis
-QUEUE_CONNECTION=redis
-SESSION_DRIVER=redis
-
-REDIS_HOST=127.0.0.1
-REDIS_PASSWORD=null
-REDIS_PORT=6379
+SESSION_DRIVER=database
+CACHE_STORE=database
+QUEUE_CONNECTION=database
 
 MAIL_MAILER=smtp
-MAIL_HOST=smtp.yourdomain.com
+MAIL_HOST=smtp.example.com
 MAIL_PORT=587
-MAIL_USERNAME=no-reply@yourdomain.com
-MAIL_PASSWORD=smtp_password
-MAIL_FROM_ADDRESS="no-reply@yourdomain.com"
+MAIL_USERNAME=SET_VIA_SECRET_MANAGEMENT
+MAIL_PASSWORD=SET_VIA_SECRET_MANAGEMENT
+MAIL_FROM_ADDRESS=no-reply@example.com
 MAIL_FROM_NAME="${APP_NAME}"
 ```
 
-**Important**: In production, set `APP_DEBUG=false` and `SESSION_DRIVER=redis` (or `database`) — never use `file` for sessions in a multi-server setup.
+Generate `APP_KEY` once for a new environment with `php artisan key:generate`. Do not replace an existing production key casually: encrypted values and sessions may become unreadable. Keep secrets out of shell history, deployment logs, and source control. Use Redis for sessions/cache/queues only after installing and configuring the appropriate PHP client and Laravel connection.
 
-### Run Migrations & Seed
+## Install, build, and migrate
+
+Run these commands from the release directory with production environment values available:
 
 ```bash
+composer install --no-dev --prefer-dist --optimize-autoloader
+npm ci
+npm run build
+php artisan storage:link
 php artisan migrate --force
-php artisan db:seed --force
-```
-
-### Optimize Caches
-
-```bash
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 php artisan event:cache
 ```
 
----
+`npm ci --omit=dev` would omit Vite and its plugins, which are development dependencies, so do not use it before the asset build. In a CI pipeline, build assets in a separate stage and deploy the generated `public/build` directory with the release.
 
-## 3. Database Setup (MySQL)
+Do not run `db:seed` in production by default. Review each seeder first; seed only required, safe reference data through an explicit deployment procedure. Do not use demo accounts or sample credentials in a live environment.
 
-```sql
-CREATE DATABASE hrm_app CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'hrm_user'@'localhost' IDENTIFIED BY 'strong_password';
-GRANT ALL PRIVILEGES ON hrm_app.* TO 'hrm_user'@'localhost';
-FLUSH PRIVILEGES;
-```
+## Nginx and PHP-FPM
 
----
-
-## 4. Nginx Configuration
-
-Create `/etc/nginx/sites-available/hrm-app`:
+Point Nginx at `public/`. Example server block (adjust PHP-FPM socket and TLS paths):
 
 ```nginx
 server {
     listen 80;
-    server_name hrm.yourdomain.com;
+    server_name hrm.example.com;
     return 301 https://$host$request_uri;
 }
 
 server {
-    listen 443 ssl http2;
-    server_name hrm.yourdomain.com;
-
-    root /var/www/hrm-app/public;
+    listen 443 ssl;
+    server_name hrm.example.com;
+    root /var/www/hrm-app/current/public;
     index index.php;
 
-    # SSL certificates (e.g., Let's Encrypt with certbot)
-    ssl_certificate /etc/letsencrypt/live/hrm.yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/hrm.yourdomain.com/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_certificate /etc/letsencrypt/live/hrm.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/hrm.example.com/privkey.pem;
 
-    # Security headers
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-
-    # Maximum upload size (resumes, profile photos)
     client_max_body_size 10M;
-
-    # Prevent access to hidden files
-    location ~ /\.(?!well-known).* {
-        deny all;
-    }
 
     location / {
         try_files $uri $uri/ /index.php?$query_string;
     }
 
-    location ~ \.php$ {
-        try_files $uri =404;
-        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+    location ~ ^/index\.php(/|$) {
         fastcgi_pass unix:/run/php/php8.3-fpm.sock;
-        fastcgi_index index.php;
+        fastcgi_split_path_info ^(.+\.php)(/.*)$;
         include fastcgi_params;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        fastcgi_read_timeout 300;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        fastcgi_param DOCUMENT_ROOT $realpath_root;
+        internal;
     }
 
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$ {
-        expires 30d;
-        add_header Cache-Control "public, immutable";
-        access_log off;
-    }
+    location ~ \.php$ { return 404; }
+
+    location ~ /\.(?!well-known).* { deny all; }
 }
 ```
 
-Enable the site:
+Validate the Nginx configuration before reloading it. Keep TLS configuration current and use the platform's certificate renewal mechanism. Laravel's `public/` directory is the only intended web root.
 
-```bash
-sudo ln -s /etc/nginx/sites-available/hrm-app /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-```
+## Files and permissions
 
-**Obtain SSL certificate:**
+Run PHP-FPM and queue workers as a dedicated unprivileged application account. Grant that account write access only to `storage/` and `bootstrap/cache/`; code and `.env` should not be writable by the web process. Store uploaded employee documents and resumes on a private disk unless they are intentionally public. Confirm backup, retention, and restore procedures cover both database and persistent uploads.
 
-```bash
-sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d hrm.yourdomain.com
-```
+## Queue worker
 
----
-
-## 5. Queue Workers
-
-Create a systemd service for queue workers. File: `/etc/systemd/system/hrm-queue.service`
+If the queue connection is not `sync`, supervise a worker with systemd, Supervisor, or a managed process service. Example systemd service for the database queue:
 
 ```ini
 [Unit]
-Description=HRM Queue Worker
-After=network.target redis-server.service
+Description=HRM Laravel Queue Worker
+After=network.target
 
 [Service]
 User=www-data
 Group=www-data
-WorkingDirectory=/var/www/hrm-app
-ExecStart=/usr/bin/php artisan queue:work redis --sleep=3 --tries=3 --max-time=3600
+WorkingDirectory=/var/www/hrm-app/current
+ExecStart=/usr/bin/php artisan queue:work database --sleep=3 --tries=3 --max-time=3600
 Restart=always
-RestartSec=3
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-Enable and start:
+Adjust the queue connection, PHP path, and account to match the host. Restart workers on each release so they load current code. Monitor failed jobs and verify jobs that may be retried are safe to execute more than once.
 
-```bash
-sudo systemctl enable hrm-queue
-sudo systemctl start hrm-queue
+## Scheduler
+
+The application registers an hourly failed-job retry in `bootstrap/app.php`. If using Laravel's scheduler, install the standard once-per-minute scheduler entry:
+
+```cron
+* * * * * cd /var/www/hrm-app/current && php artisan schedule:run >> /dev/null 2>&1
 ```
 
----
+Review the retry policy before enabling it in production, since retrying failed jobs can repeat side effects if a job is not idempotent.
 
-## 6. Scheduler (Cron)
+## Release procedure
 
-Laravel's scheduler must run every minute. Add to crontab:
+Use immutable release directories and a `current` symlink, or an equivalent release strategy. A typical release should:
 
-```bash
-crontab -e
-```
+1. Fetch an identified revision and install locked dependencies.
+2. Build frontend assets and validate the release in CI.
+3. Put the app in maintenance mode if the deployment is not zero-downtime and the maintenance page is configured.
+4. Apply backward-compatible migrations with `php artisan migrate --force`.
+5. Switch the active release, clear/rebuild Laravel caches, and restart queue workers.
+6. Check the health endpoint and critical workflows, then restore traffic.
+7. Retain the prior release and a verified backup for rollback.
 
-```
-* * * * * cd /var/www/hrm-app && php artisan schedule:run >> /dev/null 2>&1
-```
+Avoid `git pull` directly in a live application directory. Database migrations need a compatible rollback plan; reverting application files alone may not reverse a schema change.
 
-The scheduler handles the hourly `queue:retry --failed` command configured in `bootstrap/app.php`.
+## Operations checklist
 
----
+- Confirm `/up` responds over HTTPS and `APP_DEBUG=false`.
+- Check `php artisan route:list` and confirm the expected routes/middleware after deployment.
+- Monitor application logs, PHP-FPM/Nginx, queue depth, failed jobs, disk space, and database health.
+- Test database and uploaded-file restoration periodically, not only backup creation.
+- Keep framework and Composer/npm dependencies patched through a reviewed update process.
+- Configure retention and access controls for employee data, candidate records, audit logs, and backups.
 
-## 7. File Permissions
-
-```bash
-sudo chown -R www-data:www-data /var/www/hrm-app
-sudo chmod -R 775 /var/www/hrm-app/storage
-sudo chmod -R 775 /var/www/hrm-app/bootstrap/cache
-```
-
----
-
-## 8. Let's Encrypt / SSL
-
-The Nginx config above references certificates. Use certbot to obtain and auto-renew:
-
-```bash
-sudo certbot --nginx -d hrm.yourdomain.com
-sudo certbot renew --dry-run
-```
-
----
-
-## 9. Production Health Checks
-
-After deployment, verify:
-
-```bash
-# Health endpoint (Laravel built-in)
-curl https://hrm.yourdomain.com/up
-
-# Route list
-php artisan route:list
-
-# Queue health
-php artisan queue:monitor
-
-# Load test (optional, before go-live)
-php artisan app:load-test --iterations=10
-```
-
----
-
-## 10. Zero-Downtime Deployment
-
-For zero-downtime deployments, use a deploy script like:
-
-```bash
-#!/usr/bin/env bash
-set -e
-
-cd /var/www/hrm-app
-
-# Maintenance mode
-php artisan down --retry=60
-
-# Pull latest code
-git pull origin main
-
-# Dependencies & assets
-composer install --no-dev --optimize-autoloader
-npm ci --production
-npm run build
-
-# Migrations
-php artisan migrate --force
-
-# Restart queue workers
-sudo systemctl restart hrm-queue
-
-# Optimize caches
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
-php artisan event:cache
-
-# Back online
-php artisan up
-```
-
----
-
-## 11. Backup Strategy
-
-Schedule daily MySQL dumps and storage backups:
-
-```bash
-# Daily at 2:00 AM
-0 2 * * * mysqldump -u hrm_user -p'strong_password' hrm_app | gzip > /var/backups/hrm/hrm_$(date +\%F).sql.gz
-0 3 * * * rsync -a /var/www/hrm-app/storage/app/ /var/backups/hrm/storage/
-```
-
----
-
-## 12. Monitoring & Logging
-
-- **Application logs**: `/var/www/hrm-app/storage/logs/laravel.log`
-- **Queue failures**: `php artisan queue:failed` / `php artisan queue:monitor`
-- **Nginx logs**: `/var/log/nginx/hrm-app.access.log`, `/var/log/nginx/hrm-app.error.log`
-
-Optionally install Laravel Horizon or Pulse for advanced queue/metrics monitoring in production.
-
----
-
-## Related Documents
-
-- [Architecture Guide](architecture.md)
-- [Root README](../README.md)
+For local commands see [development.md](development.md); for application boundaries see [architecture.md](architecture.md); for testing see [testing.md](testing.md).
